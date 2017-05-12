@@ -5,7 +5,7 @@ one will do. The package comment should introduce the package and provide inform
 relevant to the package as a whole. It will appear first on the godoc page and should set
 up the detailed documentation that follows.
 */
-package logout
+package signout
 
 import (
 	// "encoding/json"
