@@ -32,4 +32,4 @@ type ServicePack struct {
 	// Extras         servicePackOption.ServicePackOptions `datastore: "-" json:"extras"`
 }
 
-type ServicePacks []ServicePack
+type ServicePacks []*ServicePack

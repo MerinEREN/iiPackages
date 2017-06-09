@@ -26,7 +26,7 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 	var uTagIDs []*datastore.Key
 	item, err := memcache.Get(ctx, "uTagIDs")
 	if err == nil {
-		err = json.Unmarshal(item.Value, uTagIDs)
+		err = json.Unmarshal(item.Value, &uTagIDs)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n",
 				r.URL.Path, err)
@@ -97,11 +97,5 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 	cat = cad + cao + casp
 	rb := new(api.ResponseBody)
 	rb.Result = cat
-	bs, err := json.Marshal(rb)
-	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Write(bs)
+	api.WriteResponse(w, r, rb)
 }

@@ -8,39 +8,21 @@ up the detailed documentation that follows.
 package signout
 
 import (
-	// "encoding/json"
-	// "fmt"
-	// "github.com/MerinEREN/iiPackages/datastore/account"
-	"github.com/MerinEREN/iiPackages/cookie"
-	// "github.com/MerinEREN/iiPackages/page/content"
-	// "github.com/MerinEREN/iiPackages/page/template"
-	// usr "github.com/MerinEREN/iiPackages/datastore/user"
-	// "google.golang.org/appengine"
-	// "google.golang.org/appengine/datastore"
-	// "google.golang.org/appengine/memcache"
-	"google.golang.org/appengine/user"
-	// "io/ioutil"
-	// "html/template"
-	"log"
-	// "mime/multipart"
-	"net/http"
-	// "regexp"
+	api "github.com/MerinEREN/iiPackages/apis"
 	"golang.org/x/net/context"
-	// "time"
+	"google.golang.org/appengine/user"
+	"log"
+	"net/http"
 )
 
 func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *user.User) {
-	url, err := user.LogoutURL(ctx, "/")
+	URL, err := user.LogoutURL(ctx, "/")
 	if err != nil {
+		log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Deleting session cookie
-	if err = cookie.Delete(w, r, "session"); err != nil {
-		log.Printf("Path: %s. Error: %v\n", r.URL.Path, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	//  CHANGE NECESSARY DB FIELDS OF USER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	http.Redirect(w, r, url, http.StatusFound)
+	rb := new(api.ResponseBody)
+	rb.Result = URL
+	api.WriteResponse(w, r, rb)
 }

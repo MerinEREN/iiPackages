@@ -11,26 +11,32 @@ import (
 	dstore "github.com/MerinEREN/iiPackages/datastore"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
+	"log"
 )
 
 // Add location filter here and use accounts addres info.
 func Get(ctx context.Context, uTagIDs []*datastore.Key) (
-	[]*ServicePack, datastore.Cursor, error) {
+	ServicePacks, datastore.Cursor, datastore.Cursor, error) {
 	sp := new(ServicePack)
-	var sps []*ServicePack
-	var c datastore.Cursor
+	var sps ServicePacks
+	var cOld datastore.Cursor
 	q := datastore.NewQuery("ServicePack")
 	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
 		Order("-LastModified").
 		Limit(10)
-	for it := q.Run(ctx); ; {
+	it := q.Run(ctx)
+	cNew, err := it.Cursor()
+	if err != nil {
+		log.Printf("ServicePack Get Error: %v\n", err)
+	}
+	for {
 		k, err := it.Next(sp)
 		if err == datastore.Done {
-			c, err = it.Cursor()
-			return sps, c, err
+			cOld, err = it.Cursor()
+			return sps, cNew, cOld, err
 		}
 		if err != nil {
-			return nil, c, err
+			return nil, cNew, cOld, err
 		}
 		sp.ID = k.StringID()
 		sps = append(sps, sp)
@@ -39,9 +45,9 @@ func Get(ctx context.Context, uTagIDs []*datastore.Key) (
 
 // Add location filter here and use accounts addres info.
 func GetNewest(ctx context.Context, c datastore.Cursor, uTagIDs []*datastore.Key) (
-	[]*ServicePack, datastore.Cursor, error) {
+	ServicePacks, datastore.Cursor, error) {
 	sp := new(ServicePack)
-	var sps []*ServicePack
+	var sps ServicePacks
 	q := datastore.NewQuery("ServicePack")
 	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
 		Order("LastModified").
@@ -73,9 +79,9 @@ func GetNewestCount(ctx context.Context, c datastore.Cursor, uTagIDs []*datastor
 
 // Add location filter here and use accounts addres info.
 func GetOldest(ctx context.Context, c datastore.Cursor, uTagIDs []*datastore.Key) (
-	[]*ServicePack, datastore.Cursor, error) {
+	ServicePacks, datastore.Cursor, error) {
 	sp := new(ServicePack)
-	var sps []*ServicePack
+	var sps ServicePacks
 	q := datastore.NewQuery("ServicePack")
 	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
 		Order("-LastModified").

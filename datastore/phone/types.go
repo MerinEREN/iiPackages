@@ -9,4 +9,4 @@ type Phone struct {
 	Exstension  string `json:exstension`
 }
 
-type Phones []Phone
+type Phones []*Phone

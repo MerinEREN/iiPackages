@@ -71,33 +71,38 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 		log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
 	}
 	rb := new(api.ResponseBody)
-	var servicePacks []*servicePack.ServicePack
-	var cursor datastore.Cursor
+	var servicePacks servicePack.ServicePacks
 	switch r.FormValue("d") {
 	case "next":
+		var cursor datastore.Cursor
 		servicePacks, cursor, err = servicePack.GetNewest(ctx, c, uTagIDs)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		rb.NextPageURL = "/servicePacks?d=next&" + "c=" + cursor.String()
 	case "prev":
+		var cursor datastore.Cursor
 		servicePacks, cursor, err = servicePack.GetOldest(ctx, c, uTagIDs)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		rb.PrevPageURL = "/servicePacks?d=prev&" + "c=" + cursor.String()
 	default:
-		servicePacks, cursor, err = servicePack.Get(ctx, uTagIDs)
+		var cNew datastore.Cursor
+		var cOld datastore.Cursor
+		servicePacks, cNew, cOld, err = servicePack.Get(ctx, uTagIDs)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		rb.NextPageURL = "/servicePacks?d=next&" + "c=" + cNew.String()
+		rb.PrevPageURL = "/servicePacks?d=prev&" + "c=" + cOld.String()
 	}
 	rb.Result = servicePacks
-	rb.NextPageUrl = "/servicePacks?d=" + r.FormValue("d") + "&" + "c=" +
-		cursor.String()
-	bs, err := json.Marshal(rb)
-	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Write(bs)
+	api.WriteResponse(w, r, rb)
 }

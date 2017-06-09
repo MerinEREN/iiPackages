@@ -71,32 +71,38 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 		log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
 	}
 	rb := new(api.ResponseBody)
-	var demands []*demand.Demand
-	var cursor datastore.Cursor
+	var demands demand.Demands
 	switch r.FormValue("d") {
 	case "next":
+		var cursor datastore.Cursor
 		demands, cursor, err = demand.GetNewest(ctx, c, uTagIDs)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		rb.NextPageURL = "/demands?d=next&" + "c=" + cursor.String()
 	case "prev":
+		var cursor datastore.Cursor
 		demands, cursor, err = demand.GetOldest(ctx, c, uTagIDs)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		rb.PrevPageURL = "/demands?d=prev&" + "c=" + cursor.String()
 	default:
-		demands, cursor, err = demand.Get(ctx, uTagIDs)
+		var cNew datastore.Cursor
+		var cOld datastore.Cursor
+		demands, cNew, cOld, err = demand.Get(ctx, uTagIDs)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		rb.NextPageURL = "/demands?d=next&" + "c=" + cNew.String()
+		rb.PrevPageURL = "/demands?d=prev&" + "c=" + cOld.String()
 	}
 	rb.Result = demands
-	rb.NextPageUrl = "/demands?d=" + r.FormValue("d") + "&" + "c=" + cursor.String()
-	bs, err := json.Marshal(rb)
-	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Write(bs)
+	api.WriteResponse(w, r, rb)
 }

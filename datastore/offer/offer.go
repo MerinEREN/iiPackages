@@ -11,26 +11,32 @@ import (
 	dstore "github.com/MerinEREN/iiPackages/datastore"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
+	"log"
 )
 
 // Add location filter here and use accounts addres info.
 func Get(ctx context.Context, uTagIDs []*datastore.Key) (
-	[]*Offer, datastore.Cursor, error) {
+	Offers, datastore.Cursor, datastore.Cursor, error) {
 	o := new(Offer)
-	var os []*Offer
-	var c datastore.Cursor
+	var os Offers
+	var cOld datastore.Cursor
 	q := datastore.NewQuery("Offer")
 	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
 		Order("-LastModified").
 		Limit(10)
-	for it := q.Run(ctx); ; {
+	it := q.Run(ctx)
+	cNew, err := it.Cursor()
+	if err != nil {
+		log.Printf("Offer Get Error: %v\n", err)
+	}
+	for {
 		k, err := it.Next(o)
 		if err == datastore.Done {
-			c, err = it.Cursor()
-			return os, c, err
+			cOld, err = it.Cursor()
+			return os, cNew, cOld, err
 		}
 		if err != nil {
-			return nil, c, err
+			return nil, cNew, cOld, err
 		}
 		o.ID = k.StringID()
 		os = append(os, o)
@@ -39,9 +45,9 @@ func Get(ctx context.Context, uTagIDs []*datastore.Key) (
 
 // Add location filter here and use accounts addres info.
 func GetNewest(ctx context.Context, c datastore.Cursor, uTagIDs []*datastore.Key) (
-	[]*Offer, datastore.Cursor, error) {
+	Offers, datastore.Cursor, error) {
 	o := new(Offer)
-	var os []*Offer
+	var os Offers
 	q := datastore.NewQuery("Offer")
 	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
 		Order("LastModified").
@@ -73,9 +79,9 @@ func GetNewestCount(ctx context.Context, c datastore.Cursor, uTagIDs []*datastor
 
 // Add location filter here and use accounts addres info.
 func GetOldest(ctx context.Context, c datastore.Cursor, uTagIDs []*datastore.Key) (
-	[]*Offer, datastore.Cursor, error) {
+	Offers, datastore.Cursor, error) {
 	o := new(Offer)
-	var os []*Offer
+	var os Offers
 	q := datastore.NewQuery("Offer")
 	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
 		Order("-LastModified").

@@ -23,13 +23,16 @@ import (
 )
 
 func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *user.User) {
-	if r.URL.Path == "/favicon.ico" {
+	/* if r.URL.Path == "/favicon.ico" {
+		return
+	} */
+	if r.URL.Path != "/" {
 		return
 	}
 	var bs []byte
 	switch r.Method {
 	case "GET":
-		resBody := new(api.ResponseBody)
+		rb := new(api.ResponseBody)
 		// Login or get data needed
 		if ug == nil {
 			gURL, err := user.LoginURL(ctx, r.URL.String())
@@ -42,7 +45,7 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 			loginURLs["LinkedIn"] = gURL
 			loginURLs["Twitter"] = gURL
 			loginURLs["Facebook"] = gURL
-			resBody.Result = loginURLs
+			rb.Result = loginURLs
 			// Also send general statistics data.
 		} else {
 			acc := new(account.Account)
@@ -269,7 +272,7 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 			ua.User[u.ID] = u
 			ua.Account = make(map[string]*account.Account)
 			ua.Account[acc.ID] = acc
-			resBody.Result = ua
+			rb.Result = ua
 		}
 		/* t := &http.Transport{}
 		t.RegisterProtocol("file", http.NewFileTransport(http.Dir("/")))
@@ -280,13 +283,7 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 		// w.WriteHeader(StatusOK)
 		// Always send corresponding header values instead of defaults !!!!
 		//w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		bs, err := json.Marshal(*resBody)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Write(bs)
+		api.WriteResponse(w, r, rb)
 	case "POST":
 		// Handle POST requests.
 		// Allways close the body

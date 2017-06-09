@@ -8,7 +8,6 @@ up the detailed documentation that follows.
 package account
 
 import (
-	"encoding/json"
 	// "fmt"
 	api "github.com/MerinEREN/iiPackages/apis"
 	"github.com/MerinEREN/iiPackages/datastore/account"
@@ -29,7 +28,7 @@ import (
 )
 
 func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *user.User) {
-	wb := new(api.ResponseBody)
+	rb := new(api.ResponseBody)
 	accName := r.URL.Path[len("/accounts/"):]
 	log.Printf("Selected account is: %s\n", accName)
 	switch r.Method {
@@ -196,7 +195,7 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 			Account *account.Account `json:"account"`
 			Users   *usr.Users       `json:"user"`
 		}{acc, nil}
-		wb.Result = au
+		rb.Result = au
 	case "POST":
 		// Handle POST requests
 	}
@@ -209,13 +208,7 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 	// w.WriteHeader(StatusOK)
 	// Always send corresponding header values instead of defaults !!!!
 	//w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	wbm, err := json.Marshal(*wb)
-	if err != nil {
-		log.Println(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Write(wbm)
+	api.WriteResponse(w, r, rb)
 	// http.NotFound(w, r)
 	// http.Redirect(w, r, "/MerinEREN", http.StatusFound)
 }

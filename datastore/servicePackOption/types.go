@@ -26,4 +26,4 @@ type ServicePackOption struct {
 	// CustomerReview string     `json:"customerreview"`
 }
 
-type ServicePackOptions []ServicePackOption
+type ServicePackOptions []*ServicePackOption
