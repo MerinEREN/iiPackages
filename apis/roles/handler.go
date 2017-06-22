@@ -8,49 +8,43 @@ up the detailed documentation that follows.
 package roles
 
 import (
-	// "encoding/json"
-	// "fmt"
 	"github.com/MerinEREN/iiPackages/datastore/account"
-	usr "github.com/MerinEREN/iiPackages/datastore/user"
-	// "google.golang.org/appengine"
+	"github.com/MerinEREN/iiPackages/datastore/user"
+	"github.com/MerinEREN/iiPackages/session"
 	"google.golang.org/appengine/datastore"
-	"google.golang.org/appengine/user"
-	// "io/ioutil"
-	"golang.org/x/net/context"
 	"log"
-	// "mime/multipart"
 	"net/http"
 )
 
-func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *user.User) {
-	u, uKey, err := usr.Get(ctx, ug.Email)
-	if err == usr.ErrFindUser {
-		log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+func Handler(s *session.Session) {
+	u, uKey, err := user.Get(s.Ctx, s.U.Email)
+	if err == user.ErrFindUser {
+		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 		// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(s.W, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if u.Status != "suspended" {
 		log.Printf("Suspended user %s trying to see "+
-			"%s path!!!", u.Email, r.URL.Path)
-		http.Error(w, "You are suspended", http.StatusForbidden)
+			"%s path!!!", u.Email, s.R.URL.Path)
+		http.Error(s.W, "You are suspended", http.StatusForbidden)
 		return
 	}
 	if u.Type == "inHouse" && (u.IsAdmin() || u.IsContentEditor()) {
 		acc := new(account.Account)
 		aKey := uKey.Parent()
-		err = datastore.Get(ctx, aKey, acc)
+		err = datastore.Get(s.Ctx, aKey, acc)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!!!!!!!!
-			http.Error(w, err.Error(),
+			http.Error(s.W, err.Error(),
 				http.StatusInternalServerError)
 			return
 		}
 	} else {
 		log.Printf("Unauthorized user %s trying to see "+
-			"%s path!!!", u.Email, r.URL.Path)
-		http.Error(w, "You are unauthorized user.", http.StatusUnauthorized)
+			"%s path!!!", u.Email, s.R.URL.Path)
+		http.Error(s.W, "You are unauthorized user.", http.StatusUnauthorized)
 		return
 	}
 }

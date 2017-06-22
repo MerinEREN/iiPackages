@@ -8,30 +8,19 @@ up the detailed documentation that follows.
 package account
 
 import (
-	// "fmt"
 	api "github.com/MerinEREN/iiPackages/apis"
 	"github.com/MerinEREN/iiPackages/datastore/account"
-	// "github.com/MerinEREN/iiPackages/page/content"
-	usr "github.com/MerinEREN/iiPackages/datastore/user"
-	// "google.golang.org/appengine"
-	// "google.golang.org/appengine/datastore"
-	// "google.golang.org/appengine/memcache"
-	"golang.org/x/net/context"
-	"google.golang.org/appengine/user"
-	// "io/ioutil"
-	// "html/template"
+	"github.com/MerinEREN/iiPackages/datastore/user"
+	"github.com/MerinEREN/iiPackages/session"
 	"log"
-	// "mime/multipart"
 	"net/http"
-	// "regexp"
-	// "time"
 )
 
-func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *user.User) {
+func Handler(s *session.Session) {
 	rb := new(api.ResponseBody)
-	accName := r.URL.Path[len("/accounts/"):]
+	accName := s.R.URL.Path[len("/accounts/"):]
 	log.Printf("Selected account is: %s\n", accName)
-	switch r.Method {
+	switch s.R.Method {
 	case "GET":
 		// acc := new(account.Account)
 		/* u := new(usr.User)
@@ -186,14 +175,14 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 			log.Printf("Error while creating session "+
 				"cookie: %v\n", err)
 		} */
-		acc, err := account.Get(ctx, accName)
+		acc, err := account.Get(s.Ctx, accName)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 		}
 		au := struct {
 			Account *account.Account `json:"account"`
-			Users   *usr.Users       `json:"user"`
+			Users   *user.Users      `json:"user"`
 		}{acc, nil}
 		rb.Result = au
 	case "POST":
@@ -208,7 +197,7 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 	// w.WriteHeader(StatusOK)
 	// Always send corresponding header values instead of defaults !!!!
 	//w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	api.WriteResponse(w, r, rb)
+	api.WriteResponse(s, rb)
 	// http.NotFound(w, r)
 	// http.Redirect(w, r, "/MerinEREN", http.StatusFound)
 }

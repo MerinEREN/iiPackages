@@ -13,4 +13,4 @@ type Address struct {
 	GeoPoint    appengine.GeoPoint `datastore:"",noindex json:"geoPoint"`
 }
 
-type Addresses []*Address
+type Addresses map[string]*Address

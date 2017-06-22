@@ -13,89 +13,88 @@ import (
 	"github.com/MerinEREN/iiPackages/datastore/demand"
 	"github.com/MerinEREN/iiPackages/datastore/offer"
 	"github.com/MerinEREN/iiPackages/datastore/servicePack"
-	usr "github.com/MerinEREN/iiPackages/datastore/user"
-	"golang.org/x/net/context"
+	"github.com/MerinEREN/iiPackages/datastore/user"
+	"github.com/MerinEREN/iiPackages/session"
 	"google.golang.org/appengine/datastore"
 	"google.golang.org/appengine/memcache"
-	"google.golang.org/appengine/user"
 	"log"
 	"net/http"
 )
 
-func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *user.User) {
+func Handler(s *session.Session) {
 	var uTagIDs []*datastore.Key
-	item, err := memcache.Get(ctx, "uTagIDs")
+	item, err := memcache.Get(s.Ctx, "uTagIDs")
 	if err == nil {
 		err = json.Unmarshal(item.Value, &uTagIDs)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n",
-				r.URL.Path, err)
-			http.Error(w, err.Error(),
+				s.R.URL.Path, err)
+			http.Error(s.W, err.Error(),
 				http.StatusInternalServerError)
 			return
 		}
 	} else {
-		item, err = memcache.Get(ctx, "u")
+		item, err = memcache.Get(s.Ctx, "u")
 		if err == nil {
-			u := new(usr.User)
+			u := new(user.User)
 			err = json.Unmarshal(item.Value, u)
 			if err != nil {
 				log.Printf("Path: %s, Error: %v\n",
-					r.URL.Path, err)
-				http.Error(w, err.Error(),
+					s.R.URL.Path, err)
+				http.Error(s.W, err.Error(),
 					http.StatusInternalServerError)
 				return
 			}
 			uTagIDs = u.TagIDs
 		} else {
-			uTagIDs, err = usr.GetTagIDs(ctx, ug.Email)
+			uTagIDs, err = user.GetTagIDs(s.Ctx, s.U.Email)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}
 		bs, err := json.Marshal(uTagIDs)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 		}
 		item = &memcache.Item{
 			Key:   "uTagIDs",
 			Value: bs,
 		}
-		err = memcache.Add(ctx, item)
+		err = memcache.Add(s.Ctx, item)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 		}
 	}
 	// FIND A WAY TO MAKE QUERIES CONQURENTLY
-	cd, err := datastore.DecodeCursor(r.FormValue("cd"))
+	cd, err := datastore.DecodeCursor(s.R.FormValue("cd"))
 	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 	}
-	co, err := datastore.DecodeCursor(r.FormValue("co"))
+	co, err := datastore.DecodeCursor(s.R.FormValue("co"))
 	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 	}
-	csp, err := datastore.DecodeCursor(r.FormValue("csp"))
+	csp, err := datastore.DecodeCursor(s.R.FormValue("csp"))
 	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 	}
 	var cat, cad, cao, casp int
-	cad, err = demand.GetNewestCount(ctx, cd, uTagIDs)
+	cad, err = demand.GetNewestCount(s.Ctx, cd, uTagIDs)
 	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 	}
-	cao, err = offer.GetNewestCount(ctx, co, uTagIDs)
+	cao, err = offer.GetNewestCount(s.Ctx, co, uTagIDs)
 	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 	}
-	casp, err = servicePack.GetNewestCount(ctx, csp, uTagIDs)
+	casp, err = servicePack.GetNewestCount(s.Ctx, csp, uTagIDs)
 	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 	}
 	cat = cad + cao + casp
 	rb := new(api.ResponseBody)
 	rb.Result = cat
-	api.WriteResponse(w, r, rb)
+	api.WriteResponse(s, rb)
 }

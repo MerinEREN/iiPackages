@@ -35,4 +35,4 @@ type Demand struct {
 	// Tags           Tags              `datastore: "-" json:"tags"`
 }
 
-type Demands []*Demand
+type Demands map[string]*Demand

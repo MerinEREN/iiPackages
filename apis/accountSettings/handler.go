@@ -8,20 +8,10 @@ up the detailed documentation that follows.
 package accountSettings
 
 import (
-	// "encoding/json"
-	// "fmt"
-	// "github.com/MerinEREN/iiPackages/datastore/account"
-	// usr "github.com/MerinEREN/iiPackages/datastore/user"
-	// "google.golang.org/appengine"
-	"google.golang.org/appengine/user"
-	// "io/ioutil"
-	"golang.org/x/net/context"
-	// "log"
-	// "mime/multipart"
-	"net/http"
+	"github.com/MerinEREN/iiPackages/session"
 )
 
-func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *user.User) {
+func Handler(s *session.Session) {
 	/* u, uKey, err := usr.Exist(ctx, ug.Email)
 	if err == usr.FindUserError {
 		log.Printf("Error while login user: %v\n", err)

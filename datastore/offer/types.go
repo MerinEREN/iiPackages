@@ -27,4 +27,4 @@ type Offer struct {
 	Score          score.Score      `json:"score"`
 }
 
-type Offers []*Offer
+type Offers map[string]*Offer

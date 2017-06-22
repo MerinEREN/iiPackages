@@ -1,14 +1,18 @@
+/*
+Every package should have a package comment, a block comment preceding the package clause.
+For multi-file packages, the package comment only needs to be present in one file, and any
+one will do. The package comment should introduce the package and provide information
+relevant to the package as a whole. It will appear first on the godoc page and should set
+up the detailed documentation that follows.
+*/
 package cookie
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
-	// "github.com/MerinEREN/iiPackages/user"
+	"github.com/MerinEREN/iiPackages/crypto"
+	"github.com/MerinEREN/iiPackages/session"
 	"log"
 	"net/http"
 	"strings"
@@ -25,19 +29,19 @@ type SessionData struct {
 }
 
 // Adding uuid and hash to the cookie and check hash code
-func Set(w http.ResponseWriter, r *http.Request, name, value string) error {
+func Set(s *session.Session, name, value string) error {
 	// COOKIE IS A PART OF THE HEADER, SO U SHOULD SET THE COOKIE BEFORE EXECUTING A
 	// TEMPLATE OR WRITING SOMETHING TO THE BODY !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	c, err := r.Cookie(name)
+	c, err := s.R.Cookie(name)
 	if err == http.ErrNoCookie {
 		c, err = create(name, value)
-		http.SetCookie(w, c)
+		http.SetCookie(s.W, c)
 	} else {
 		if isUserDataChanged(c) {
 			// DELETING CORRUPTED COOKIE AND CREATING NEW ONE !!!!!!!!!!!!!!!!!
-			Delete(w, r, name)
+			Delete(s, name)
 			c, _ = create(name, value)
-			http.SetCookie(w, c)
+			http.SetCookie(s.W, c)
 			err = ErrCorruptedCookie
 		}
 	}
@@ -64,20 +68,19 @@ func create(n, v string) (c *http.Cookie, err error) {
 		HttpOnly: false,
 	}
 	err = setValue(c)
-	// log.Printf("Cookie is: %v. Error is: %v.", c, err)
 	return
 }
 
-func Delete(w http.ResponseWriter, r *http.Request, n string) error {
-	c, err := r.Cookie(n)
+func Delete(s *session.Session, n string) error {
+	c, err := s.R.Cookie(n)
 	if err == http.ErrNoCookie {
 		return err
 	}
 	c.MaxAge = -1
 	// If path is different can't delete cookie without cookie's path.
 	// Maybe should use cookie path even paths are same.
-	c.Path = r.URL.Path
-	http.SetCookie(w, c)
+	c.Path = s.R.URL.Path
+	http.SetCookie(s.W, c)
 	return err
 }
 
@@ -94,32 +97,28 @@ func setValue(c *http.Cookie) (err error) {
 	if err != nil {
 		return
 	}
-	// log.Printf("Marshalled cookie data is %s\n", string(bs))
-	// log.Printf("Cookie value for "+c.Name+" is: %s\n", c.Value)
 	c.Value += "|" + base64.StdEncoding.EncodeToString(bs)
-	code := GetHmac(c.Value)
+	code, err := crypto.GetMAC(c.Value)
+	if err != nil {
+		return
+	}
 	c.Value += "|" + code
-	// log.Printf("Cookie value for "+c.Name+" is: %s\n", c.Value)
 	return
 }
 
 func isUserDataChanged(c *http.Cookie) bool {
 	cvSlice := strings.Split(c.Value, "|")
 	uuidData := cvSlice[0] + "|" + cvSlice[1]
-	returnedCode := GetHmac(uuidData)
-	if returnedCode != cvSlice[2] {
-		log.Printf("%s cookie value is corrupted. Cookie HMAC is %s, "+
-			"genereted HMAC is %s", c.Name, cvSlice[2], returnedCode)
-		returnedCookieData := decodeThanUnmarshall(cvSlice[1])
-		log.Printf("Returned cookie data is %v", returnedCookieData)
+	if !crypto.CheckMAC(uuidData, cvSlice[2]) {
+		log.Printf("%s cookie value is corrupted.", c.Name)
 		return true
 	}
 	return false
 }
 
 // MAKE GENERIC RETURN TYPE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-func GetData(r *http.Request, n string) (*SessionData, error) {
-	c, err := r.Cookie(n)
+func GetData(s session.Session, n string) (*SessionData, error) {
+	c, err := s.R.Cookie(n)
 	if err == http.ErrNoCookie {
 		return &SessionData{}, err
 	}
@@ -139,18 +138,4 @@ func decodeThanUnmarshall(cd string) *SessionData {
 		log.Printf("Cookie data unmarshaling error. %v\n", err)
 	}
 	return &cookieData
-}
-
-func GetHmac(i interface{}) string {
-	h := hmac.New(sha256.New, []byte("someKey"))
-	s, ok := i.(string)
-	if ok {
-		io.WriteString(h, s)
-	}
-	var r io.Reader
-	r, ok = i.(io.Reader)
-	if ok {
-		io.Copy(h, r)
-	}
-	return fmt.Sprintf("%x", h.Sum(nil))
 }

@@ -6,4 +6,4 @@ type Rank struct {
 	Values map[string]string `json:"values"`
 }
 
-type Ranks []*Rank
+type Ranks map[string]*Rank

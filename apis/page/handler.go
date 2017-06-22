@@ -11,27 +11,26 @@ import (
 	"encoding/json"
 	api "github.com/MerinEREN/iiPackages/apis"
 	"github.com/MerinEREN/iiPackages/datastore/page"
-	"golang.org/x/net/context"
+	"github.com/MerinEREN/iiPackages/session"
 	"google.golang.org/appengine/datastore"
-	"google.golang.org/appengine/user"
 	"io/ioutil"
 	"log"
 	"net/http"
 )
 
-func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *user.User) {
-	if r.Method == "POST" {
-		bs, err := ioutil.ReadAll(r.Body)
+func Handler(s *session.Session) {
+	if s.R.Method == "POST" {
+		bs, err := ioutil.ReadAll(s.R.Body)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		p := new(page.Page)
 		err = json.Unmarshal(bs, p)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		// Using 'decoder' is an alternative and can be used if response body has
@@ -41,34 +40,34 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 		/*decoder := json.NewDecoder(r.Body)
 		err := decoder.Decode(p)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		} */
-		p, err = page.Put(ctx, p)
+		p, err = page.Put(s.Ctx, p)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(201)
+		s.W.WriteHeader(201)
 		return
 	} else {
-		c, err := datastore.DecodeCursor(r.FormValue("c"))
+		c, err := datastore.DecodeCursor(s.R.FormValue("c"))
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		pages, c, err := page.GetMulti(ctx, c)
+		pages, c, err := page.GetMulti(s.Ctx, c)
 		if err != nil && err != datastore.Done {
-			log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		rb := new(api.ResponseBody)
 		rb.PrevPageURL = "/pages?d=prev&" + "c=" + c.String()
 		rb.Result = pages
-		api.WriteResponse(w, r, rb)
+		api.WriteResponse(s, rb)
 	}
 }

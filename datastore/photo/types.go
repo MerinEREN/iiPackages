@@ -12,4 +12,4 @@ type Photo struct {
 	Status       string    `json:"status"`
 }
 
-type Photos []*Photo
+type Photos map[string]*Photo

@@ -9,39 +9,33 @@ package userSettings
 
 import (
 	"encoding/json"
-	// "fmt"
-	// "github.com/MerinEREN/iiPackages/datastore/account"
-	usr "github.com/MerinEREN/iiPackages/datastore/user"
-	// "google.golang.org/appengine"
-	"google.golang.org/appengine/user"
-	// "io/ioutil"
-	"golang.org/x/net/context"
+	"github.com/MerinEREN/iiPackages/datastore/user"
+	"github.com/MerinEREN/iiPackages/session"
 	"log"
-	// "mime/multipart"
 	"net/http"
 )
 
-func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *user.User) {
-	u, _, err := usr.Get(ctx, ug.Email)
-	if err == usr.ErrFindUser {
-		log.Printf("Path: %s, Error: %v\n", r.URL.Path, err)
+func Handler(s *session.Session) {
+	u, _, err := user.Get(s.Ctx, s.U.Email)
+	if err == user.ErrFindUser {
+		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 		// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(s.W, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if u.Status == "frozen" {
 		log.Printf("Unauthorized user %s trying to see "+
-			"%s path!!!", u.Email, r.URL.Path)
-		// fmt.Fprintf(w, "Permission denied !!!")
-		http.Error(w, "some error message", http.StatusForbidden)
+			"%s path!!!", u.Email, s.R.URL.Path)
+		// fmt.Fprintf(s.W, "Permission denied !!!")
+		http.Error(s.W, "some error message", http.StatusForbidden)
 		return
 	}
 	b, err := json.Marshal(u)
 	if err != nil {
 		log.Println(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(s.W, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	// Always send corresponding header values instead of defaults !!!!
-	w.Write(b)
+	s.W.Write(b)
 }

@@ -12,4 +12,4 @@ type Video struct {
 	Status       string    `json:"status"`
 }
 
-type Videos []*Video
+type Videos map[string]*Video

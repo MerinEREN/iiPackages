@@ -5,24 +5,17 @@ one will do. The package comment should introduce the package and provide inform
 relevant to the package as a whole. It will appear first on the godoc page and should set
 up the detailed documentation that follows.
 */
-package signout
+package session
 
 import (
-	api "github.com/MerinEREN/iiPackages/apis"
-	"github.com/MerinEREN/iiPackages/session"
+	"golang.org/x/net/context"
 	"google.golang.org/appengine/user"
-	"log"
 	"net/http"
 )
 
-func Handler(s *session.Session) {
-	URL, err := user.LogoutURL(s.Ctx, "/")
-	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-		http.Error(s.W, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	rb := new(api.ResponseBody)
-	rb.Result = URL
-	api.WriteResponse(s, rb)
+type Session struct {
+	Ctx context.Context
+	R   *http.Request
+	W   http.ResponseWriter
+	U   *user.User
 }

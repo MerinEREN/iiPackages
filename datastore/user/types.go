@@ -47,7 +47,7 @@ type Name struct {
 	Last  string `json:"last"`
 }
 
-type Users []*User
+type Users map[string]*User
 
 type Entity interface {
 	// Use this for all structs

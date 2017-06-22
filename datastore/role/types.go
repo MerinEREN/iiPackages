@@ -5,4 +5,4 @@ type Role struct {
 	Values map[string]string `datastore: "" json:"values"`
 }
 
-type Roles []*Role
+type Roles map[string]*Role

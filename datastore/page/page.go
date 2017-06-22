@@ -44,14 +44,14 @@ func Put(ctx context.Context, p *Page) (*Page, error) {
 }
 
 func GetMulti(ctx context.Context, c datastore.Cursor) (Pages, datastore.Cursor, error) {
-	p := new(Page)
-	var ps Pages
+	ps := make(Pages)
 	q := datastore.NewQuery("Page").Order("-Created")
 	if c.String() != "" {
 		q = q.Start(c)
 	}
 	q = q.Limit(10)
 	for it := q.Run(ctx); ; {
+		p := new(Page)
 		k, err := it.Next(p)
 		if err == datastore.Done {
 			c, err = it.Cursor()
@@ -62,6 +62,6 @@ func GetMulti(ctx context.Context, c datastore.Cursor) (Pages, datastore.Cursor,
 			return nil, c, err
 		}
 		p.ID = k.StringID()
-		ps = append(ps, p)
+		ps[p.ID] = p
 	}
 }

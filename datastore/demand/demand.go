@@ -17,8 +17,7 @@ import (
 // Add location filter here and use accounts addres info.
 func Get(ctx context.Context, uTagIDs []*datastore.Key) (
 	Demands, datastore.Cursor, datastore.Cursor, error) {
-	d := new(Demand)
-	var ds Demands
+	ds := make(Demands)
 	var cOld datastore.Cursor
 	q := datastore.NewQuery("Demand")
 	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
@@ -30,6 +29,7 @@ func Get(ctx context.Context, uTagIDs []*datastore.Key) (
 		log.Printf("Demand Get Error: %v\n", err)
 	}
 	for {
+		d := new(Demand)
 		k, err := it.Next(d)
 		if err == datastore.Done {
 			cOld, err = it.Cursor()
@@ -39,20 +39,20 @@ func Get(ctx context.Context, uTagIDs []*datastore.Key) (
 			return nil, cNew, cOld, err
 		}
 		d.ID = k.StringID()
-		ds = append(ds, d)
+		ds[d.ID] = d
 	}
 }
 
 // Add location filter here and use accounts addres info.
 func GetNewest(ctx context.Context, c datastore.Cursor, uTagIDs []*datastore.Key) (
 	Demands, datastore.Cursor, error) {
-	d := new(Demand)
-	var ds Demands
+	ds := make(Demands)
 	q := datastore.NewQuery("Demand")
 	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
 		Order("LastModified").
 		Start(c)
 	for it := q.Run(ctx); ; {
+		d := new(Demand)
 		k, err := it.Next(d)
 		if err == datastore.Done {
 			c, err = it.Cursor()
@@ -62,7 +62,7 @@ func GetNewest(ctx context.Context, c datastore.Cursor, uTagIDs []*datastore.Key
 			return nil, c, err
 		}
 		d.ID = k.StringID()
-		ds = append(ds, d)
+		ds[d.ID] = d
 	}
 }
 
@@ -80,14 +80,14 @@ func GetNewestCount(ctx context.Context, c datastore.Cursor, uTagIDs []*datastor
 // Add location filter here and use accounts addres info.
 func GetOldest(ctx context.Context, c datastore.Cursor, uTagIDs []*datastore.Key) (
 	Demands, datastore.Cursor, error) {
-	d := new(Demand)
-	var ds Demands
+	ds := make(Demands)
 	q := datastore.NewQuery("Demand")
 	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
 		Order("-LastModified").
 		Start(c).
 		Limit(10)
 	for it := q.Run(ctx); ; {
+		d := new(Demand)
 		k, err := it.Next(d)
 		if err == datastore.Done {
 			c, err = it.Cursor()
@@ -97,6 +97,6 @@ func GetOldest(ctx context.Context, c datastore.Cursor, uTagIDs []*datastore.Key
 			return nil, c, err
 		}
 		d.ID = k.StringID()
-		ds = append(ds, d)
+		ds[d.ID] = d
 	}
 }

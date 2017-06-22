@@ -13,31 +13,31 @@ import (
 	"github.com/MerinEREN/iiPackages/cookie"
 	"github.com/MerinEREN/iiPackages/datastore/account"
 	"github.com/MerinEREN/iiPackages/datastore/photo"
-	usr "github.com/MerinEREN/iiPackages/datastore/user"
-	"golang.org/x/net/context"
+	"github.com/MerinEREN/iiPackages/datastore/user"
+	"github.com/MerinEREN/iiPackages/session"
 	"google.golang.org/appengine/datastore"
 	"google.golang.org/appengine/memcache"
-	"google.golang.org/appengine/user"
+	gu "google.golang.org/appengine/user"
 	"log"
 	"net/http"
 )
 
-func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *user.User) {
-	/* if r.URL.Path == "/favicon.ico" {
+func Handler(s *session.Session) {
+	/* if s.R.URL.Path == "/favicon.ico" {
 		return
 	} */
-	if r.URL.Path != "/" {
+	if s.R.URL.Path != "/" {
 		return
 	}
 	var bs []byte
-	switch r.Method {
+	switch s.R.Method {
 	case "GET":
 		rb := new(api.ResponseBody)
 		// Login or get data needed
-		if ug == nil {
-			gURL, err := user.LoginURL(ctx, r.URL.String())
+		if s.U == nil {
+			gURL, err := gu.LoginURL(s.Ctx, s.R.URL.String())
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			loginURLs := make(map[string]string)
@@ -49,73 +49,73 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 			// Also send general statistics data.
 		} else {
 			acc := new(account.Account)
-			u := new(usr.User)
+			u := new(user.User)
 			// Users own account page or not
 			// if ac.ID, ok := reqBodyUm["data"]["acc"]; !ok {
 			aKey := new(datastore.Key)
 			uKey := new(datastore.Key)
 			p := new(photo.Photo)
-			item, err := memcache.Get(ctx, "u")
+			item, err := memcache.Get(s.Ctx, "u")
 			if err == nil {
 				err = json.Unmarshal(item.Value, u)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n",
-						r.URL.Path, err)
-					http.Error(w, err.Error(),
+						s.R.URL.Path, err)
+					http.Error(s.W, err.Error(),
 						http.StatusInternalServerError)
 					return
 				}
 			} else {
-				u, uKey, err = usr.Get(ctx, ug.Email)
+				u, uKey, err = user.Get(s.Ctx, s.U.Email)
 				switch err {
 				case datastore.Done:
-					acc, u, uKey, err = account.Create(ctx)
+					acc, u, uKey, err = account.Create(s.Ctx)
 					if err != nil {
 						log.Printf("Path: %s, Error: %v\n",
-							r.URL.Path, err)
+							s.R.URL.Path, err)
 						// ALSO LOG THIS WITH DATASTORE LOG
-						http.Error(w, err.Error(),
+						http.Error(s.W, err.Error(),
 							http.StatusInternalServerError)
 						return
 					}
 					bs, err = json.Marshal(acc)
 					if err != nil {
 						log.Printf("Path: %s, Error: %v\n",
-							r.URL.Path, err)
+							s.R.URL.Path, err)
 					}
 					item = &memcache.Item{
 						Key:   "acc",
 						Value: bs,
 					}
-					err = memcache.Add(ctx, item)
+					err = memcache.Add(s.Ctx, item)
 					if err != nil {
 						log.Printf("Path: %s, Error: %v\n",
-							r.URL.Path, err)
+							s.R.URL.Path, err)
 					}
-				case usr.ErrFindUser:
+				case user.ErrFindUser:
 					log.Printf("Path: %s, Error: %v\n",
-						r.URL.Path, err)
+						s.R.URL.Path, err)
 					// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!
-					http.Error(w, err.Error(),
+					http.Error(s.W, err.Error(),
 						http.StatusInternalServerError)
 					return
 				}
-				p, _, err = photo.Get(ctx, uKey)
+				p, _, err = photo.Get(s.Ctx, uKey)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n",
-						r.URL.Path, err)
+						s.R.URL.Path, err)
 				} else {
 					u.Photo = *p
 				}
 				bs, err = json.Marshal(u)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n",
-						r.URL.Path, err)
+						s.R.URL.Path, err)
 				}
 				bsUKey, err := json.Marshal(uKey)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n",
-						r.URL.Path, err)
+						s.R.URL.Path, err)
 				}
 				items := []*memcache.Item{
 					{
@@ -127,54 +127,54 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 						Value: bsUKey,
 					},
 				}
-				err = memcache.AddMulti(ctx, items)
+				err = memcache.AddMulti(s.Ctx, items)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n",
-						r.URL.Path, err)
+						s.R.URL.Path, err)
 				}
 			}
-			item, err = memcache.Get(ctx, "acc")
+			item, err = memcache.Get(s.Ctx, "acc")
 			if err == nil {
 				err = json.Unmarshal(item.Value, acc)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n",
-						r.URL.Path, err)
-					http.Error(w, err.Error(),
+						s.R.URL.Path, err)
+					http.Error(s.W, err.Error(),
 						http.StatusInternalServerError)
 					return
 				}
 			} else {
-				item, err = memcache.Get(ctx, "uKey")
+				item, err = memcache.Get(s.Ctx, "uKey")
 				if err == nil {
 					err = json.Unmarshal(item.Value, uKey)
 					if err != nil {
 						log.Printf("Path: %s, Error: %v\n",
-							r.URL.Path, err)
-						http.Error(w, err.Error(),
+							s.R.URL.Path, err)
+						http.Error(s.W, err.Error(),
 							http.StatusInternalServerError)
 						return
 					}
 					aKey = uKey.Parent()
-					acc, err = account.Get(ctx, aKey)
+					acc, err = account.Get(s.Ctx, aKey)
 					if err != nil && err != datastore.Done {
 						log.Printf("Path: %s, Error: %v\n",
-							r.URL.Path, err)
+							s.R.URL.Path, err)
 						// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!
-						http.Error(w, err.Error(),
+						http.Error(s.W, err.Error(),
 							http.StatusInternalServerError)
 						return
 					}
 				} else {
-					uKey, err = usr.GetKey(ctx, ug.Email)
+					uKey, err = user.GetKey(s.Ctx, s.U.Email)
 					switch err {
 					// Imposible case
 					/* case datastore.Done:
-					acc, u, uKey, err = account.Create(ctx)
+					acc, u, uKey, err = account.Create(s.Ctx)
 					if err != nil {
 						log.Printf("Error while creating "+
 							"account: %v\n", err)
 						// ALSO LOG THIS WITH DATASTORE LOG
-						http.Error(w, err.Error(),
+						http.Error(s.W, err.Error(),
 							http.StatusInternalServerError)
 						return
 					}
@@ -187,26 +187,26 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 						Key:   "acc",
 						Value: bs,
 					}
-					err = memcache.Add(ctx, itemA)
+					err = memcache.Add(s.Ctx, itemA)
 					if err != nil {
 						log.Printf("Path: %s, Error: %v\n",
 							s, err)
 					} */
-					case usr.ErrFindUser:
+					case user.ErrFindUser:
 						log.Printf("Path: %s, Error: %v\n",
-							r.URL.Path, err)
+							s.R.URL.Path, err)
 						// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!
-						http.Error(w, err.Error(),
+						http.Error(s.W, err.Error(),
 							http.StatusInternalServerError)
 						return
 					default:
 						aKey = uKey.Parent()
-						acc, err = account.Get(ctx, aKey)
+						acc, err = account.Get(s.Ctx, aKey)
 						if err != nil && err != datastore.Done {
 							log.Printf("Path: %s, Error: %v\n",
-								r.URL.Path, err)
+								s.R.URL.Path, err)
 							// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!
-							http.Error(w, err.Error(),
+							http.Error(s.W, err.Error(),
 								http.StatusInternalServerError)
 							return
 						}
@@ -214,61 +214,61 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 					bs, err = json.Marshal(uKey)
 					if err != nil {
 						log.Printf("Path: %s, Error: %v\n",
-							r.URL.Path, err)
+							s.R.URL.Path, err)
 					}
 					item = &memcache.Item{
 						Key:   "uKey",
 						Value: bs,
 					}
-					err = memcache.Add(ctx, item)
+					err = memcache.Add(s.Ctx, item)
 					if err != nil {
 						log.Printf("Path: %s, Error: %v\n",
-							r.URL.Path, err)
+							s.R.URL.Path, err)
 					}
 				}
-				p, _, err = photo.Get(ctx, aKey)
+				p, _, err = photo.Get(s.Ctx, aKey)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n",
-						r.URL.Path, err)
+						s.R.URL.Path, err)
 				} else {
 					acc.Photo = *p
 				}
 				bs, err = json.Marshal(acc)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n",
-						r.URL.Path, err)
+						s.R.URL.Path, err)
 				}
 				item = &memcache.Item{
 					Key:   "acc",
 					Value: bs,
 				}
-				err = memcache.Add(ctx, item)
+				err = memcache.Add(s.Ctx, item)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n",
-						r.URL.Path, err)
+						s.R.URL.Path, err)
 				}
 			}
 			// If cookie present does nothing.
 			// So does not necessary to check.
-			err = cookie.Set(w, r, "session", u.ID)
+			err = cookie.Set(s, "session", u.ID)
 			if err != nil {
 				log.Printf("Path: %s, Error: %v\n",
-					r.URL.Path, err)
+					s.R.URL.Path, err)
 			}
 			/* } else {
 				// someone elses account
 				s, ok := ac.ID.(string)
 				if ok {
-					acc, err = account.Get(ctx, s)
+					acc, err = account.Get(s.Ctx, s)
 				} else {
 					log.Println("Account name type is not string.")
-					http.Error(w, "Account name type is not string.",
+					http.Error(s.W, "Account name type is not string.",
 						http.StatusBadRequest)
 					return
 				}
 			} */
 			var ua userAccount
-			ua.User = make(map[string]*usr.User)
+			ua.User = make(map[string]*user.User)
 			ua.User[u.ID] = u
 			ua.Account = make(map[string]*account.Account)
 			ua.Account[acc.ID] = acc
@@ -283,7 +283,7 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 		// w.WriteHeader(StatusOK)
 		// Always send corresponding header values instead of defaults !!!!
 		//w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		api.WriteResponse(w, r, rb)
+		api.WriteResponse(s, rb)
 	case "POST":
 		// Handle POST requests.
 		// Allways close the body
@@ -292,14 +292,14 @@ func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request, ug *us
 		// explicitly is not necessary.
 		/* bs, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(s.W, err.Error(), http.StatusBadRequest)
 			return
 		}
 		var reqBodyUm map[string]map[string]interface{}
 		err = json.Unmarshal(bs, &reqBodyUm)
 		if err != nil {
 			log.Println("Error while unmarshalling request body:", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		} */
 		// Can use belowe line instead of ioutil.ReadAll() and json.Unmarshall()

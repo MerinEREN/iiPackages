@@ -5,4 +5,4 @@ type Tag struct {
 	Values map[string]string `json:"values"`
 }
 
-type Tags []*Tag
+type Tags map[string]*Tag

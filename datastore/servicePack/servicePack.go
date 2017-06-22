@@ -17,8 +17,7 @@ import (
 // Add location filter here and use accounts addres info.
 func Get(ctx context.Context, uTagIDs []*datastore.Key) (
 	ServicePacks, datastore.Cursor, datastore.Cursor, error) {
-	sp := new(ServicePack)
-	var sps ServicePacks
+	sps := make(ServicePacks)
 	var cOld datastore.Cursor
 	q := datastore.NewQuery("ServicePack")
 	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
@@ -30,6 +29,7 @@ func Get(ctx context.Context, uTagIDs []*datastore.Key) (
 		log.Printf("ServicePack Get Error: %v\n", err)
 	}
 	for {
+		sp := new(ServicePack)
 		k, err := it.Next(sp)
 		if err == datastore.Done {
 			cOld, err = it.Cursor()
@@ -39,20 +39,20 @@ func Get(ctx context.Context, uTagIDs []*datastore.Key) (
 			return nil, cNew, cOld, err
 		}
 		sp.ID = k.StringID()
-		sps = append(sps, sp)
+		sps[sp.ID] = sp
 	}
 }
 
 // Add location filter here and use accounts addres info.
 func GetNewest(ctx context.Context, c datastore.Cursor, uTagIDs []*datastore.Key) (
 	ServicePacks, datastore.Cursor, error) {
-	sp := new(ServicePack)
-	var sps ServicePacks
+	sps := make(ServicePacks)
 	q := datastore.NewQuery("ServicePack")
 	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
 		Order("LastModified").
 		Start(c)
 	for it := q.Run(ctx); ; {
+		sp := new(ServicePack)
 		k, err := it.Next(sp)
 		if err == datastore.Done {
 			c, err = it.Cursor()
@@ -62,7 +62,7 @@ func GetNewest(ctx context.Context, c datastore.Cursor, uTagIDs []*datastore.Key
 			return nil, c, err
 		}
 		sp.ID = k.StringID()
-		sps = append(sps, sp)
+		sps[sp.ID] = sp
 	}
 }
 
@@ -80,14 +80,14 @@ func GetNewestCount(ctx context.Context, c datastore.Cursor, uTagIDs []*datastor
 // Add location filter here and use accounts addres info.
 func GetOldest(ctx context.Context, c datastore.Cursor, uTagIDs []*datastore.Key) (
 	ServicePacks, datastore.Cursor, error) {
-	sp := new(ServicePack)
-	var sps ServicePacks
+	sps := make(ServicePacks)
 	q := datastore.NewQuery("ServicePack")
 	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
 		Order("-LastModified").
 		Start(c).
 		Limit(10)
 	for it := q.Run(ctx); ; {
+		sp := new(ServicePack)
 		k, err := it.Next(sp)
 		if err == datastore.Done {
 			c, err = it.Cursor()
@@ -97,6 +97,6 @@ func GetOldest(ctx context.Context, c datastore.Cursor, uTagIDs []*datastore.Key
 			return nil, c, err
 		}
 		sp.ID = k.StringID()
-		sps = append(sps, sp)
+		sps[sp.ID] = sp
 	}
 }

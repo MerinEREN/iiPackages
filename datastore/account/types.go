@@ -28,6 +28,8 @@ type Account struct {
 	BankAccounts []BankAccount     `json:"bankAccount" valid:"bankAccount"`
 }
 
+type Accounts map[string]*Account
+
 type BankAccount struct {
 	IMEI string `json:"IMEI"`
 }
