@@ -5,7 +5,7 @@ one will do. The package comment should introduce the package and provide inform
 relevant to the package as a whole. It will appear first on the godoc page and should set
 up the detailed documentation that follows.
 */
-package page
+package content
 
 import (
 	"errors"
@@ -17,8 +17,8 @@ import (
 
 // Errors
 var (
-	ErrFindPage = errors.New("Error while getting page.")
-	// ErrPutPage  = errors.New("Error while putting page into the datastore.")
+	ErrFindContent = errors.New("Error while getting content.")
+	// ErrPutContent  = errors.New("Error while putting page into the datastore.")
 )
 
 /*
@@ -31,33 +31,32 @@ name being declared.
 */
 // Compile parses a regular expression and returns, if successful,
 // a Regexp that can be used to match against text.
-func Put(ctx context.Context, p *Page) (*Page, error) {
-	p.Title = strings.TrimSpace(p.Title)
-	p.Created = time.Now()
+func Put(ctx context.Context, c *Content) (*Content, error) {
+	c.Created = time.Now()
 	p.LastModified = time.Now()
-	keyName := strings.Replace(p.Title, " ", "", -1)
-	k := datastore.NewKey(ctx, "Page", keyName, 0, nil)
+	keyName := "getSha(ID)"
+	k := datastore.NewKey(ctx, "Content", keyName, 0, nil)
 	k, err := datastore.Put(ctx, k, p)
 	p.ID = k.StringID()
 	return p, err
 }
 
-func GetMulti(ctx context.Context, c datastore.Cursor) (Pages, datastore.Cursor, error) {
-	ps := make(Pages)
-	q := datastore.NewQuery("Page").Order("-Created")
+func GetMulti(ctx context.Context, c datastore.Cursor) (Contents, datastore.Cursor, error) {
+	ps := make(Contents)
+	q := datastore.NewQuery("Content").Order("-Created")
 	if c.String() != "" {
 		q = q.Start(c)
 	}
 	q = q.Limit(10)
 	for it := q.Run(ctx); ; {
-		p := new(Page)
+		p := new(Content)
 		k, err := it.Next(p)
 		if err == datastore.Done {
 			c, err = it.Cursor()
 			return ps, c, err
 		}
 		if err != nil {
-			err = ErrFindPage
+			err = ErrFindContent
 			return nil, c, err
 		}
 		p.ID = k.StringID()

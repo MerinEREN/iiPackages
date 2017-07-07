@@ -1,4 +1,4 @@
-package page
+package language
 
 import (
 	"mime/multipart"
@@ -6,9 +6,8 @@ import (
 )
 
 // datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-type Page struct {
-	ID           string                `datastore:"-"`
-	Title        string                `json:"title"`
+type Language struct {
+	Code         string                `datastore:"-" json:"code"`
 	Mpf          multipart.File        `datastore:"-"`
 	Hdr          *multipart.FileHeader `datastore:"-"`
 	Link         string                `json:"link"`
@@ -16,4 +15,4 @@ type Page struct {
 	LastModified time.Time             `json:"lastModified"`
 }
 
-type Pages map[string]*Page
+type Languages map[string]*Language

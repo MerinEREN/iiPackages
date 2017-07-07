@@ -17,7 +17,7 @@ type Account struct {
 	ID           string            `datastore:"-"`
 	Photo        photo.Photo       `datastore:"-" json:"photo"`
 	Name         string            `json:"name"`
-	Addresses    address.Addresses `json:"addresses"`
+	Addresses    address.Addresses `datastore:"-" json:"addresses"`
 	Status       string            `json:"status"`
 	About        string            `json:"about"`
 	Score        score.Score       `datastore:"-" json:"score"`

@@ -5,11 +5,11 @@ one will do. The package comment should introduce the package and provide inform
 relevant to the package as a whole. It will appear first on the godoc page and should set
 up the detailed documentation that follows.
 */
-package page
+package language
 
 import (
 	api "github.com/MerinEREN/iiPackages/apis"
-	"github.com/MerinEREN/iiPackages/datastore/page"
+	"github.com/MerinEREN/iiPackages/datastore/language"
 	"github.com/MerinEREN/iiPackages/session"
 	"github.com/MerinEREN/iiPackages/storage"
 	"google.golang.org/appengine/datastore"
@@ -19,7 +19,7 @@ import (
 
 func Handler(s *session.Session) {
 	if s.R.Method == "POST" {
-		title := s.R.FormValue("title")
+		langCode := s.R.FormValue("code")
 		mpf, hdr, err := s.R.FormFile("file")
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
@@ -27,43 +27,18 @@ func Handler(s *session.Session) {
 			return
 		}
 		defer mpf.Close()
-		p := &page.Page{
-			Title: title,
-			Mpf:   mpf,
-			Hdr:   hdr,
+		lang := &language.Language{
+			Code: langCode,
+			Mpf:  mpf,
+			Hdr:  hdr,
 		}
-		/* bs, err := ioutil.ReadAll(s.R.Body)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		p := new(page.Page)
-		err = json.Unmarshal(bs, p)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		} */
-		// Using 'decoder' is an alternative and can be used if response body has
-		// more than one json object.
-		// Otherwise don't use it, because it has performance disadvantages
-		// compared to first solution.
-		/*decoder := json.NewDecoder(r.Body)
-		err := decoder.Decode(p)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		} */
-		mLink, err := storage.UploadFile(s, p.Mpf, p.Hdr)
+		lang.Link, err = storage.UploadFile(s, lang.Mpf, lang.Hdr)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		p.Link = mLink
-		p, err = page.Put(s.Ctx, p)
+		lang, err = language.Put(s.Ctx, lang)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -79,15 +54,15 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		pages, c, err := page.GetMulti(s.Ctx, c)
+		langs, c, err := language.GetMulti(s.Ctx, c)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		rb := new(api.ResponseBody)
-		rb.PrevPageURL = "/pages?d=prev&" + "c=" + c.String()
-		rb.Result = pages
+		rb.PrevPageURL = "/languages?d=prev&" + "c=" + c.String()
+		rb.Result = langs
 		api.WriteResponse(s, rb)
 	}
 }

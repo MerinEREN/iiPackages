@@ -13,8 +13,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 )
 
+// Errors
 var (
 	ErrInvalidFileType = errors.New("Invalid file type to encrypt.")
 )
@@ -49,6 +51,8 @@ func GetSha(i interface{}) (string, error) {
 	case string:
 		io.WriteString(h, v)
 	case io.Reader:
+		io.Copy(h, v)
+	case *os.File:
 		io.Copy(h, v)
 	default:
 		return "", ErrInvalidFileType

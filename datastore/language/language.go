@@ -5,20 +5,18 @@ one will do. The package comment should introduce the package and provide inform
 relevant to the package as a whole. It will appear first on the godoc page and should set
 up the detailed documentation that follows.
 */
-package page
+package language
 
 import (
 	"errors"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
-	"strings"
 	"time"
 )
 
 // Errors
 var (
-	ErrFindPage = errors.New("Error while getting page.")
-	// ErrPutPage  = errors.New("Error while putting page into the datastore.")
+	ErrFindLanguage = errors.New("Error while getting language.")
 )
 
 /*
@@ -31,36 +29,33 @@ name being declared.
 */
 // Compile parses a regular expression and returns, if successful,
 // a Regexp that can be used to match against text.
-func Put(ctx context.Context, p *Page) (*Page, error) {
-	p.Title = strings.TrimSpace(p.Title)
-	p.Created = time.Now()
-	p.LastModified = time.Now()
-	keyName := strings.Replace(p.Title, " ", "", -1)
-	k := datastore.NewKey(ctx, "Page", keyName, 0, nil)
-	k, err := datastore.Put(ctx, k, p)
-	p.ID = k.StringID()
-	return p, err
+func Put(ctx context.Context, l *Language) (*Language, error) {
+	l.Created = time.Now()
+	l.LastModified = time.Now()
+	k := datastore.NewKey(ctx, "Language", l.Code, 0, nil)
+	k, err := datastore.Put(ctx, k, l)
+	return l, err
 }
 
-func GetMulti(ctx context.Context, c datastore.Cursor) (Pages, datastore.Cursor, error) {
-	ps := make(Pages)
-	q := datastore.NewQuery("Page").Order("-Created")
+func GetMulti(ctx context.Context, c datastore.Cursor) (Languages, datastore.Cursor, error) {
+	ls := make(Languages)
+	q := datastore.NewQuery("Language").Order("-Created")
 	if c.String() != "" {
 		q = q.Start(c)
 	}
 	q = q.Limit(10)
 	for it := q.Run(ctx); ; {
-		p := new(Page)
-		k, err := it.Next(p)
+		l := new(Language)
+		k, err := it.Next(l)
 		if err == datastore.Done {
 			c, err = it.Cursor()
-			return ps, c, err
+			return ls, c, err
 		}
 		if err != nil {
-			err = ErrFindPage
+			err = ErrFindLanguage
 			return nil, c, err
 		}
-		p.ID = k.StringID()
-		ps[p.ID] = p
+		l.Code = k.StringID()
+		ls[l.Code] = l
 	}
 }

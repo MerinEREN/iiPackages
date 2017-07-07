@@ -9,50 +9,93 @@ package storage
 
 import (
 	"cloud.google.com/go/storage"
-	"github.com/MerinEREN/iiPackages/session"
+	"fmt"
 	"github.com/MerinEREN/iiPackages/crypto"
+	"github.com/MerinEREN/iiPackages/session"
+	"io"
 	"mime/multipart"
 	"strings"
-	"io/ioutil"
-	"errors"
 )
 
 const (
-	ErrInvalidFileType = errors.New("Invalid file type.")
-)
-
-var (
-	app        = "inceis-1319"
-	bucketName = "inceis-1319.appspot.com"
+	gcsBucket = "inceis-1319.appspot.com"
 )
 
 func UploadFile(s *session.Session, mpf multipart.File, hdr *multipart.FileHeader) (
-	string, error) {
-	client, err := storage.NewClient(s.ctx)
-	defer client.Close()
-	bucket := client.Bucket(bucketName)
-	ext, err := fileFilter(hdr)
+	mLink string, err error) {
+	var pfix, ext, name string
+	pfix, ext, err = fileFilter(hdr)
 	if err != nil {
-		return nil, err
+		return
 	}
-	name, err := crypto.GetSha(mpf) + '.' + ext
+	name, err = crypto.GetSha(mpf)
 	if err != nil {
-		return nil, err
+		return
 	}
-	object := bucket.Object(name)
+	mpf.Seek(0, 0)
+	name = pfix + name + "." + ext
+	mLink, err = putFile(s, mpf, name)
+	return
 }
 
-
-func putFile(s *session.Session, f *multipart.File) error {
-}
-
-func fileFilter(hdr *multipart.FileHeader) (ext string, err error) {
-	ext = hdr[strings.LastIndex(hdr, ".")+1:]
+// This is a weak filter, make it stronger.
+func fileFilter(hdr *multipart.FileHeader) (pfix, ext string, err error) {
+	ext = hdr.Filename[strings.LastIndex(hdr.Filename, ".")+1:]
 	// Allow only image and video file formats.
 	switch ext {
-	case 'jpeg', 'png', 'jpg', 'bmp', 'gif', 'avi', 'mov', 'flv', 'mpg', 'mp4', 'mkv':
-		return ext, nil
+	case "jpeg", "png", "jpg", "bmp", "gif":
+		pfix = "img/"
+		return
+	case "avi", "mov", "flv", "mpg", "mp4", "mkv":
+		pfix = "video/"
+		return
 	default:
-		return nil, ErrInvalidFileType
+		err = fmt.Errorf("%s is an invalid format type to upload. Allowed types "+
+			"are: jpeg, png, jpg, bmp, gif, avi, mov, flv, mpg, mp4 and mkv.",
+			ext)
+		return
 	}
+}
+
+func putFile(s *session.Session, mpf multipart.File, name string) (
+	link string, err error) {
+	client := new(storage.Client)
+	client, err = storage.NewClient(s.Ctx)
+	if err != nil {
+		return
+	}
+	defer client.Close()
+	bucket := client.Bucket(gcsBucket)
+	object := bucket.Object(name)
+	w := object.NewWriter(s.Ctx)
+	if err != nil {
+		return
+	}
+	// ACLRule initialization is for make source kode able to read objects from the
+	// Google Cloud Storage.
+	w.ACL = []storage.ACLRule{
+		{storage.AllUsers, storage.RoleReader},
+	}
+	_, err = io.Copy(w, mpf)
+	if err != nil {
+		return
+	}
+	err = w.Close()
+	attrs := new(storage.ObjectAttrs)
+	attrs, err = object.Attrs(s.Ctx)
+	if err != nil {
+		return
+	}
+	link = attrs.MediaLink
+	return
+}
+
+// Close ReadCloser where you call that function (defer rdr.Close()).
+func GetFile(s *session.Session, name string) (io.ReadCloser, error) {
+	client, err := storage.NewClient(s.Ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+	return client.Bucket(gcsBucket).Object(name).NewReader(s.Ctx)
 }
