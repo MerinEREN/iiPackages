@@ -59,3 +59,9 @@ func GetMulti(ctx context.Context, c datastore.Cursor) (Languages, datastore.Cur
 		ls[l.Code] = l
 	}
 }
+
+func GetCount(ctx context.Context) (c int, err error) {
+	q := datastore.NewQuery("Language")
+	c, err = q.Count(ctx)
+	return
+}

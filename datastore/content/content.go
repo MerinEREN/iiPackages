@@ -11,7 +11,6 @@ import (
 	"errors"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
-	"strings"
 	"time"
 )
 
@@ -33,33 +32,33 @@ name being declared.
 // a Regexp that can be used to match against text.
 func Put(ctx context.Context, c *Content) (*Content, error) {
 	c.Created = time.Now()
-	p.LastModified = time.Now()
+	c.LastModified = time.Now()
 	keyName := "getSha(ID)"
 	k := datastore.NewKey(ctx, "Content", keyName, 0, nil)
-	k, err := datastore.Put(ctx, k, p)
-	p.ID = k.StringID()
-	return p, err
+	k, err := datastore.Put(ctx, k, c)
+	c.ID = k.StringID()
+	return c, err
 }
 
 func GetMulti(ctx context.Context, c datastore.Cursor) (Contents, datastore.Cursor, error) {
-	ps := make(Contents)
+	cntnts := make(Contents)
 	q := datastore.NewQuery("Content").Order("-Created")
 	if c.String() != "" {
 		q = q.Start(c)
 	}
 	q = q.Limit(10)
 	for it := q.Run(ctx); ; {
-		p := new(Content)
-		k, err := it.Next(p)
+		cntnt := new(Content)
+		k, err := it.Next(cntnt)
 		if err == datastore.Done {
 			c, err = it.Cursor()
-			return ps, c, err
+			return cntnts, c, err
 		}
 		if err != nil {
 			err = ErrFindContent
 			return nil, c, err
 		}
-		p.ID = k.StringID()
-		ps[p.ID] = p
+		cntnt.ID = k.StringID()
+		cntnts[cntnt.ID] = cntnt
 	}
 }

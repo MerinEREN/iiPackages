@@ -80,21 +80,21 @@ func Handler(s *session.Session) {
 	if err != nil {
 		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 	}
-	var cat, cad, cao, casp int
-	cad, err = demand.GetNewestCount(s.Ctx, cd, uTagIDs)
+	var countT, countD, countO, countSp int
+	countD, err = demand.GetNewestCount(s.Ctx, cd, uTagIDs)
 	if err != nil {
 		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 	}
-	cao, err = offer.GetNewestCount(s.Ctx, co, uTagIDs)
+	countO, err = offer.GetNewestCount(s.Ctx, co, uTagIDs)
 	if err != nil {
 		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 	}
-	casp, err = servicePack.GetNewestCount(s.Ctx, csp, uTagIDs)
+	countSp, err = servicePack.GetNewestCount(s.Ctx, csp, uTagIDs)
 	if err != nil {
 		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 	}
-	cat = cad + cao + casp
+	countT = countD + countO + countSp
 	rb := new(api.ResponseBody)
-	rb.Result = cat
+	rb.Result = countT
 	api.WriteResponse(s, rb)
 }

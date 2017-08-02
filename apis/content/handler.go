@@ -9,10 +9,12 @@ up the detailed documentation that follows.
 package content
 
 import (
+	"encoding/json"
 	api "github.com/MerinEREN/iiPackages/apis"
 	"github.com/MerinEREN/iiPackages/datastore/content"
 	"github.com/MerinEREN/iiPackages/session"
 	"google.golang.org/appengine/datastore"
+	"io/ioutil"
 	"log"
 	"net/http"
 )
@@ -25,7 +27,7 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		p := new(page.Page)
+		p := new(content.Content)
 		err = json.Unmarshal(bs, p)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
@@ -43,7 +45,7 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		} */
-		p, err = page.Put(s.Ctx, p)
+		p, err = content.Put(s.Ctx, p)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -58,7 +60,7 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		pages, c, err := page.GetMulti(s.Ctx, c)
+		contents, c, err := content.GetMulti(s.Ctx, c)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -66,7 +68,7 @@ func Handler(s *session.Session) {
 		}
 		rb := new(api.ResponseBody)
 		rb.PrevPageURL = "/pages?d=prev&" + "c=" + c.String()
-		rb.Result = pages
+		rb.Result = contents
 		api.WriteResponse(s, rb)
 	}
 }

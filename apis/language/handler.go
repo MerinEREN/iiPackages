@@ -48,21 +48,34 @@ func Handler(s *session.Session) {
 		s.W.WriteHeader(201)
 		return
 	} else {
-		c, err := datastore.DecodeCursor(s.R.FormValue("c"))
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		langs, c, err := language.GetMulti(s.Ctx, c)
-		if err != nil && err != datastore.Done {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
 		rb := new(api.ResponseBody)
-		rb.PrevPageURL = "/languages?d=prev&" + "c=" + c.String()
-		rb.Result = langs
+		if s.R.FormValue("action") == "getCount" {
+			c, err := language.GetCount(s.Ctx)
+			if err != nil && err != datastore.Done {
+				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				http.Error(s.W, err.Error(),
+					http.StatusInternalServerError)
+				return
+			}
+			rb.Result = c
+		} else {
+			c, err := datastore.DecodeCursor(s.R.FormValue("c"))
+			if err != nil {
+				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				http.Error(s.W, err.Error(),
+					http.StatusInternalServerError)
+				return
+			}
+			langs, c, err := language.GetMulti(s.Ctx, c)
+			if err != nil && err != datastore.Done {
+				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				http.Error(s.W, err.Error(),
+					http.StatusInternalServerError)
+				return
+			}
+			rb.PrevPageURL = "/languages?d=prev&" + "c=" + c.String()
+			rb.Result = langs
+		}
 		api.WriteResponse(s, rb)
 	}
 }
