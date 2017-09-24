@@ -1,5 +1,6 @@
 /*
-Every package should have a package comment, a block comment preceding the package clause.
+Package language "Every package should have a package comment, a block comment preceding
+the package clause.
 For multi-file packages, the package comment only needs to be present in one file, and any
 one will do. The package comment should introduce the package and provide information
 relevant to the package as a whole. It will appear first on the godoc page and should set
@@ -16,16 +17,16 @@ import (
 
 // Errors
 var (
-	ErrFindLanguage = errors.New("Error while getting language.")
+	ErrFindLanguage = errors.New("Error while getting language")
 )
 
 /*
-Inside a package, any comment immediately preceding a top-level declaration serves as a
+Put "Inside a package, any comment immediately preceding a top-level declaration serves as a
 doc comment for that declaration. Every exported (capitalized) name in a program should
 have a doc comment.
 Doc comments work best as complete sentences, which allow a wide variety of automated
 presentations. The first sentence should be a one-sentence summary that starts with the
-name being declared.
+name being declared."
 */
 // Compile parses a regular expression and returns, if successful,
 // a Regexp that can be used to match against text.
@@ -37,6 +38,7 @@ func Put(ctx context.Context, l *Language) (*Language, error) {
 	return l, err
 }
 
+// GetMulti "Exported functions should have a comment"
 func GetMulti(ctx context.Context, c datastore.Cursor) (Languages, datastore.Cursor, error) {
 	ls := make(Languages)
 	q := datastore.NewQuery("Language").Order("-Created")
@@ -60,6 +62,7 @@ func GetMulti(ctx context.Context, c datastore.Cursor) (Languages, datastore.Cur
 	}
 }
 
+// GetCount "Exported functions should have a comment"
 func GetCount(ctx context.Context) (c int, err error) {
 	q := datastore.NewQuery("Language")
 	c, err = q.Count(ctx)

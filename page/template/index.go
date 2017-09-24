@@ -13,6 +13,7 @@ var (
 	// RenderIndex      = renderTemplate("index")
 )
 
+// RenderIndex "Exported functions should have a comment"
 func RenderIndex(w http.ResponseWriter) {
 	err := html.Execute(w, nil)
 	if err != nil {

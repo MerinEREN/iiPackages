@@ -1,9 +1,9 @@
 /*
-Every package should have a package comment, a block comment preceding the package clause.
+Package page "Every package should have a package comment, a block comment preceding the package clause.
 For multi-file packages, the package comment only needs to be present in one file, and any
 one will do. The package comment should introduce the package and provide information
 relevant to the package as a whole. It will appear first on the godoc page and should set
-up the detailed documentation that follows.
+up the detailed documentation that follows."
 */
 package page
 
@@ -17,17 +17,17 @@ import (
 
 // Errors
 var (
-	ErrFindPage = errors.New("Error while getting page.")
+	ErrFindPage = errors.New("error while getting page")
 	// ErrPutPage  = errors.New("Error while putting page into the datastore.")
 )
 
 /*
-Inside a package, any comment immediately preceding a top-level declaration serves as a
+Put "Inside a package, any comment immediately preceding a top-level declaration serves as a
 doc comment for that declaration. Every exported (capitalized) name in a program should
 have a doc comment.
 Doc comments work best as complete sentences, which allow a wide variety of automated
 presentations. The first sentence should be a one-sentence summary that starts with the
-name being declared.
+name being declared."
 */
 // Compile parses a regular expression and returns, if successful,
 // a Regexp that can be used to match against text.
@@ -42,6 +42,7 @@ func Put(ctx context.Context, p *Page) (*Page, error) {
 	return p, err
 }
 
+// GetMulti "Exported functions should have a comment"
 func GetMulti(ctx context.Context, c datastore.Cursor) (Pages, datastore.Cursor, error) {
 	ps := make(Pages)
 	q := datastore.NewQuery("Page").Order("-Created")

@@ -1,9 +1,9 @@
 /*
-Every package should have a package comment, a block comment preceding the package clause.
+Package storage "Every package should have a package comment, a block comment preceding the package clause.
 For multi-file packages, the package comment only needs to be present in one file, and any
 one will do. The package comment should introduce the package and provide information
 relevant to the package as a whole. It will appear first on the godoc page and should set
-up the detailed documentation that follows.
+up the detailed documentation that follows."
 */
 package storage
 
@@ -13,6 +13,7 @@ import (
 	"github.com/MerinEREN/iiPackages/crypto"
 	"github.com/MerinEREN/iiPackages/session"
 	"io"
+	// "log"
 	"mime/multipart"
 	"strings"
 )
@@ -21,6 +22,7 @@ const (
 	gcsBucket = "inceis-1319.appspot.com"
 )
 
+// UploadFile "Exported functions should have a comment"
 func UploadFile(s *session.Session, mpf multipart.File, hdr *multipart.FileHeader) (
 	mLink string, err error) {
 	var pfix, ext, name string
@@ -74,7 +76,10 @@ func putFile(s *session.Session, mpf multipart.File, name string) (
 	// ACLRule initialization is for make source kode able to read objects from the
 	// Google Cloud Storage.
 	w.ACL = []storage.ACLRule{
-		{storage.AllUsers, storage.RoleReader},
+		{
+			Entity: storage.AllUsers,
+			Role:   storage.RoleReader,
+		},
 	}
 	_, err = io.Copy(w, mpf)
 	if err != nil {
@@ -90,7 +95,7 @@ func putFile(s *session.Session, mpf multipart.File, name string) (
 	return
 }
 
-// Close ReadCloser where you call that function (defer rdr.Close()).
+// GetFile "Close ReadCloser where you call that function (defer rdr.Close())."
 func GetFile(s *session.Session, name string) (io.ReadCloser, error) {
 	client, err := storage.NewClient(s.Ctx)
 	if err != nil {
