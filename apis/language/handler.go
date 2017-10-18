@@ -9,11 +9,8 @@ up the detailed documentation that follows."
 package language
 
 import (
-	api "github.com/MerinEREN/iiPackages/apis"
 	"github.com/MerinEREN/iiPackages/datastore/language"
 	"github.com/MerinEREN/iiPackages/session"
-	"github.com/MerinEREN/iiPackages/storage"
-	"google.golang.org/appengine/datastore"
 	"log"
 	"net/http"
 )
@@ -22,64 +19,16 @@ import (
 func Handler(s *session.Session) {
 	switch s.R.Method {
 	case "GET":
-		rb := new(api.ResponseBody)
-		if s.R.FormValue("action") == "getCount" {
-			c, err := language.GetCount(s.Ctx)
-			if err != nil && err != datastore.Done {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-				http.Error(s.W, err.Error(),
-					http.StatusInternalServerError)
-				return
-			}
-			rb.Result = c
-		} else {
-			c, err := datastore.DecodeCursor(s.R.FormValue("c"))
-			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-				http.Error(s.W, err.Error(),
-					http.StatusInternalServerError)
-				return
-			}
-			langs, c, err := language.GetMulti(s.Ctx, c)
-			if err != nil && err != datastore.Done {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-				http.Error(s.W, err.Error(),
-					http.StatusInternalServerError)
-				return
-			}
-			rb.PrevPageURL = "/languages?d=prev&" + "c=" + c.String()
-			rb.Result = langs
-		}
-		api.WriteResponse(s, rb)
 	case "DELETE":
-	default:
-		// Handles "POST" and "PUT" requests
 		langCode := s.R.FormValue("code")
-		mpf, hdr, err := s.R.FormFile("file")
+		err := language.Delete(s, langCode)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer mpf.Close()
-		lang := &language.Language{
-			Code: langCode,
-			Mpf:  mpf,
-			Hdr:  hdr,
-		}
-		lang.Link, err = storage.UploadFile(s, lang.Mpf, lang.Hdr)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		lang, err = language.Put(s.Ctx, lang)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		// RETURN MediaLink HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		s.W.WriteHeader(201)
+		s.W.WriteHeader(http.StatusNoContent)
+	default:
+		// Handles "GET" requests
 	}
 }

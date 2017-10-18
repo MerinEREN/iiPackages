@@ -12,9 +12,10 @@ import (
 
 // type Accounts []Account
 
+// Account is the struct for register accounts.
 // Hide name when sending.
 type Account struct {
-	ID           string            `datastore:"-"`
+	ID           string            `datastore:"-" json:"id"`
 	Photo        photo.Photo       `datastore:"-" json:"photo"`
 	Name         string            `json:"name"`
 	Addresses    address.Addresses `datastore:"-" json:"addresses"`
@@ -28,12 +29,15 @@ type Account struct {
 	BankAccounts []BankAccount     `json:"bankAccount" valid:"bankAccount"`
 }
 
+// Accounts is a map[string]*Account.
 type Accounts map[string]*Account
 
+// BankAccount is the struct for store accounts bank account infos..
 type BankAccount struct {
 	IMEI string `json:"IMEI"`
 }
 
+// Entity USE THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 type Entity interface {
 	// Use this for all structs
 	// Update()

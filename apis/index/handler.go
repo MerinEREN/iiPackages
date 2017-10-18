@@ -1,9 +1,9 @@
 /*
-Every package should have a package comment, a block comment preceding the package clause.
+Package index "Every package should have a package comment, a block comment preceding the package clause.
 For multi-file packages, the package comment only needs to be present in one file, and any
 one will do. The package comment should introduce the package and provide information
 relevant to the package as a whole. It will appear first on the godoc page and should set
-up the detailed documentation that follows.
+up the detailed documentation that follows."
 */
 package index
 
@@ -17,11 +17,12 @@ import (
 	"github.com/MerinEREN/iiPackages/session"
 	"google.golang.org/appengine/datastore"
 	"google.golang.org/appengine/memcache"
-	gu "google.golang.org/appengine/user"
+	googleUser "google.golang.org/appengine/user"
 	"log"
 	"net/http"
 )
 
+// Handler "Exported functions should have a comment"
 func Handler(s *session.Session) {
 	/* if s.R.URL.Path == "/favicon.ico" {
 		return
@@ -31,27 +32,47 @@ func Handler(s *session.Session) {
 	}
 	var bs []byte
 	switch s.R.Method {
-	case "GET":
+	case "POST":
+		// Handle POST requests.
+		// Allways close the body
+		// defer r.Body.Close()
+		// r.Body is io.ReadCloser type, so may be closing request body
+		// explicitly is not necessary.
+		/* bs, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(s.W, err.Error(), http.StatusBadRequest)
+			return
+		}
+		var reqBodyUm map[string]map[string]interface{}
+		err = json.Unmarshal(bs, &reqBodyUm)
+		if err != nil {
+			log.Println("Error while unmarshalling request body:", err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		} */
+		// Can use belowe line instead of ioutil.ReadAll() and json.Unmarshall()
+		// But performs a little bit slower.
+		// err = json.NewDecoder(r.Body()).Decode(&reqBodyUm)
+	default:
+		// Handles "GET" requests
 		rb := new(api.ResponseBody)
 		// Login or get data needed
 		if s.U == nil {
-			gURL, err := gu.LoginURL(s.Ctx, s.R.URL.String())
+			googleURL, err := googleUser.LoginURL(s.Ctx, s.R.URL.String())
 			if err != nil {
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			loginURLs := make(map[string]string)
-			loginURLs["Google"] = gURL
-			loginURLs["LinkedIn"] = gURL
-			loginURLs["Twitter"] = gURL
-			loginURLs["Facebook"] = gURL
+			loginURLs["Google"] = googleURL
+			loginURLs["LinkedIn"] = googleURL
+			loginURLs["Twitter"] = googleURL
+			loginURLs["Facebook"] = googleURL
 			rb.Result = loginURLs
 			// Also send general statistics data.
 		} else {
 			acc := new(account.Account)
 			u := new(user.User)
-			// Users own account page or not
-			// if ac.ID, ok := reqBodyUm["data"]["acc"]; !ok {
 			aKey := new(datastore.Key)
 			uKey := new(datastore.Key)
 			p := new(photo.Photo)
@@ -69,7 +90,8 @@ func Handler(s *session.Session) {
 				u, uKey, err = user.Get(s.Ctx, s.U.Email)
 				switch err {
 				case datastore.Done:
-					acc, u, uKey, err = account.Create(s.Ctx)
+					acc, u, uKey, err = account.
+						CreateAccountAndUser(s.Ctx)
 					if err != nil {
 						log.Printf("Path: %s, Error: %v\n",
 							s.R.URL.Path, err)
@@ -284,28 +306,5 @@ func Handler(s *session.Session) {
 		// Always send corresponding header values instead of defaults !!!!
 		//w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		api.WriteResponse(s, rb)
-	case "POST":
-		// Handle POST requests.
-		// Allways close the body
-		// defer r.Body.Close()
-		// r.Body is io.ReadCloser type, so may be closing request body
-		// explicitly is not necessary.
-		/* bs, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			http.Error(s.W, err.Error(), http.StatusBadRequest)
-			return
-		}
-		var reqBodyUm map[string]map[string]interface{}
-		err = json.Unmarshal(bs, &reqBodyUm)
-		if err != nil {
-			log.Println("Error while unmarshalling request body:", err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		} */
-		// Can use belowe line instead of ioutil.ReadAll() and json.Unmarshall()
-		// But performs a little bit slower.
-		// err = json.NewDecoder(r.Body()).Decode(&reqBodyUm)
-	default:
-		// Some default shit
 	}
 }

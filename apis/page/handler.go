@@ -19,7 +19,9 @@ import (
 
 // Handler "Exported functions should have a comment"
 func Handler(s *session.Session) {
-	if s.R.Method == "POST" {
+	keyName := s.R.FormValue("ID")
+	switch s.R.Method {
+	case "PUT":
 		title := s.R.FormValue("title")
 		mpf, hdr, err := s.R.FormFile("file")
 		if err != nil {
@@ -29,65 +31,47 @@ func Handler(s *session.Session) {
 		}
 		defer mpf.Close()
 		p := &page.Page{
+			ID:    keyName,
 			Title: title,
 			Mpf:   mpf,
 			Hdr:   hdr,
 		}
-		/* bs, err := ioutil.ReadAll(s.R.Body)
+		// CHECK THE STORAGE AND IF THE FILE PRESENT DO NOT UPLOAD THE FILE !!!!!!!
+		p.Link, err = storage.UploadFile(s, p.Mpf, p.Hdr)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		p := new(page.Page)
-		err = json.Unmarshal(bs, p)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		} */
-		// Using 'decoder' is an alternative and can be used if response body has
-		// more than one json object.
-		// Otherwise don't use it, because it has performance disadvantages
-		// compared to first solution.
-		/*decoder := json.NewDecoder(r.Body)
-		err := decoder.Decode(p)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		} */
-		mLink, err := storage.UploadFile(s, p.Mpf, p.Hdr)
+		ps, err := page.Put(s, p)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		p.Link = mLink
-		p, err = page.Put(s.Ctx, p)
+		rb := new(api.ResponseBody)
+		rb.Result = ps
+		s.W.WriteHeader(http.StatusOK)
+		api.WriteResponse(s, rb)
+	case "DELETE":
+		err := page.Delete(s, keyName)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		// RETURN MediaLink HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		s.W.WriteHeader(201)
-		return
+		// REDIRECT TO THE PAGES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		s.W.WriteHeader(http.StatusNoContent)
+	default:
+		// Handles "GET" requests
+		ps, err := page.Get(s, keyName)
+		if err != nil && err != datastore.Done {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		rb := new(api.ResponseBody)
+		rb.Result = ps
+		api.WriteResponse(s, rb)
 	}
-	c, err := datastore.DecodeCursor(s.R.FormValue("c"))
-	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-		http.Error(s.W, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	pages, c, err := page.GetMulti(s.Ctx, c)
-	if err != nil && err != datastore.Done {
-		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-		http.Error(s.W, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	rb := new(api.ResponseBody)
-	rb.PrevPageURL = "/pages?d=prev&" + "c=" + c.String()
-	rb.Result = pages
-	api.WriteResponse(s, rb)
 }

@@ -1,9 +1,9 @@
 /*
-Every package should have a package comment, a block comment preceding the package clause.
+Package account "Every package should have a package comment, a block comment preceding the package clause.
 For multi-file packages, the package comment only needs to be present in one file, and any
 one will do. The package comment should introduce the package and provide information
 relevant to the package as a whole. It will appear first on the godoc page and should set
-up the detailed documentation that follows.
+up the detailed documentation that follows."
 */
 package account
 
@@ -27,10 +27,12 @@ import (
 
 // Errors
 var (
-	ErrPutAccount  = errors.New("Error while putting account into the datastore.")
-	ErrFindAccount = errors.New("Error while getting account.")
+	ErrPutAccount  = errors.New("error while putting account into the datastore")
+	ErrFindAccount = errors.New("error while getting account")
 )
 
+// CreateAccountAndUser MAKE THIS A TRANSACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// OR GENERATE A RANDOM ACCOUNT ID AND USE IT INSTEAD OF Account_XXX !!!!!!!!!!!!!!!!!!!!!!
 /*
 Inside a package, any comment immediately preceding a top-level declaration serves as a
 doc comment for that declaration. Every exported (capitalized) name in a program should
@@ -41,7 +43,7 @@ name being declared.
 */
 // Compile parses a regular expression and returns, if successful,
 // a Regexp that can be used to match against text.
-func Create(ctx context.Context) (acc *Account, u *usr.User, uK *datastore.Key,
+func CreateAccountAndUser(ctx context.Context) (acc *Account, u *usr.User, uK *datastore.Key,
 	err error) {
 	// CAHANGE THIS CONTROL AND ALLOW SPECIAL CHARACTERS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	/* if !valid.IsAlphanumeric(password) {
@@ -98,6 +100,7 @@ func Create(ctx context.Context) (acc *Account, u *usr.User, uK *datastore.Key,
 	return
 }
 
+// Get "Exported functions should have a comment"
 func Get(ctx context.Context, k interface{}) (*Account, error) {
 	acc := new(Account)
 	var err error
@@ -123,6 +126,7 @@ func Get(ctx context.Context, k interface{}) (*Account, error) {
 	return acc, nil
 }
 
+// Delete "Exported functions should have a comment"
 func Delete(ctx context.Context, k *datastore.Key) error {
 	err := datastore.Delete(ctx, k)
 	return err

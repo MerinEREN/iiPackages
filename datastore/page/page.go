@@ -9,7 +9,7 @@ package page
 
 import (
 	"errors"
-	"golang.org/x/net/context"
+	"github.com/MerinEREN/iiPackages/session"
 	"google.golang.org/appengine/datastore"
 	"strings"
 	"time"
@@ -31,26 +31,34 @@ name being declared."
 */
 // Compile parses a regular expression and returns, if successful,
 // a Regexp that can be used to match against text.
-func Put(ctx context.Context, p *Page) (*Page, error) {
+func Put(s *session.Session, p *Page) (Pages, error) {
+	ps := make(Pages)
+	k := new(datastore.Key)
 	p.Title = strings.TrimSpace(p.Title)
-	p.Created = time.Now()
+	if s.R.Method == "POST" {
+		p.Created = time.Now()
+		keyName := strings.Replace(p.Title, " ", "", -1)
+		k = datastore.NewKey(s.Ctx, "Page", keyName, 0, nil)
+		p.ID = k.StringID()
+	} else if s.R.Method == "PUT" {
+		k = datastore.NewKey(s.Ctx, "Page", p.ID, 0, nil)
+	}
 	p.LastModified = time.Now()
-	keyName := strings.Replace(p.Title, " ", "", -1)
-	k := datastore.NewKey(ctx, "Page", keyName, 0, nil)
-	k, err := datastore.Put(ctx, k, p)
-	p.ID = k.StringID()
-	return p, err
+	k, err := datastore.Put(s.Ctx, k, p)
+	ps[p.ID] = p
+	return ps, err
 }
 
 // GetMulti "Exported functions should have a comment"
-func GetMulti(ctx context.Context, c datastore.Cursor) (Pages, datastore.Cursor, error) {
+func GetMulti(s *session.Session, c datastore.Cursor) (Pages, datastore.Cursor, error) {
 	ps := make(Pages)
-	q := datastore.NewQuery("Page").Order("-Created")
+	// Maybe -LastModied should be the order ctireia if consider UX, think about that.
+	q := datastore.NewQuery("Page").Project("Title", "Link").Order("-Created")
 	if c.String() != "" {
 		q = q.Start(c)
 	}
 	q = q.Limit(10)
-	for it := q.Run(ctx); ; {
+	for it := q.Run(s.Ctx); ; {
 		p := new(Page)
 		k, err := it.Next(p)
 		if err == datastore.Done {
@@ -64,4 +72,21 @@ func GetMulti(ctx context.Context, c datastore.Cursor) (Pages, datastore.Cursor,
 		p.ID = k.StringID()
 		ps[p.ID] = p
 	}
+}
+
+// Get returns the page with provided keyName and an error.
+func Get(s *session.Session, keyName string) (Pages, error) {
+	ps := make(Pages)
+	k := datastore.NewKey(s.Ctx, "Page", keyName, 0, nil)
+	p := new(Page)
+	err := datastore.Get(s.Ctx, k, p)
+	p.ID = k.StringID()
+	ps[p.ID] = p
+	return ps, err
+}
+
+// Delete removes the page with the provided page id and returns an error.
+func Delete(s *session.Session, pageID string) error {
+	k := datastore.NewKey(s.Ctx, "Page", pageID, 0, nil)
+	return datastore.Delete(s.Ctx, k)
 }

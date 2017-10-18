@@ -1,9 +1,9 @@
 /*
-Every package should have a package comment, a block comment preceding the package clause.
+Package user "Every package should have a package comment, a block comment preceding the package clause.
 For multi-file packages, the package comment only needs to be present in one file, and any
 one will do. The package comment should introduce the package and provide information
 relevant to the package as a whole. It will appear first on the godoc page and should set
-up the detailed documentation that follows.
+up the detailed documentation that follows."
 */
 package user
 
@@ -27,14 +27,15 @@ import (
 
 // Errors
 var (
-	ErrEmailNotExist   = errors.New("Email Not Exist")
-	ErrInvalidEmail    = errors.New("Invalid Email")
-	ErrInvalidPassword = errors.New("Invalid Password")
-	ErrPutUser         = errors.New("Error while putting user into the datastore.")
-	ErrFindUser        = errors.New("Error while checking email existincy.")
+	ErrEmailNotExist   = errors.New("email Not Exist")
+	ErrInvalidEmail    = errors.New("invalid Email")
+	ErrInvalidPassword = errors.New("invalid Password")
+	ErrPutUser         = errors.New("error while putting user into the datastore")
+	ErrFindUser        = errors.New("error while checking email existincy")
 	// ErrExistingEmail   = errors.New("Existing Email")
 )
 
+// IsAdmin "Exported functions should have a comment"
 func (u *User) IsAdmin() bool {
 	for _, r := range u.Roles {
 		if r == "admin" {
@@ -44,6 +45,7 @@ func (u *User) IsAdmin() bool {
 	return false
 }
 
+// IsContentEditor "Exported functions should have a comment"
 func (u *User) IsContentEditor() bool {
 	for _, r := range u.Roles {
 		if r == "contentEditor" {
@@ -53,6 +55,7 @@ func (u *User) IsContentEditor() bool {
 	return false
 }
 
+// New "Exported functions should have a comment"
 func New(ctx context.Context, parentKey *datastore.Key, email, role string) (u *User,
 	key *datastore.Key, err error) {
 	var roles []string
@@ -83,6 +86,7 @@ func New(ctx context.Context, parentKey *datastore.Key, email, role string) (u *
 	return
 }
 
+// Get "Exported functions should have a comment"
 func Get(ctx context.Context, email string) (*User, *datastore.Key, error) {
 	u := new(User)
 	q := datastore.NewQuery("User").Filter("Email =", email)
@@ -100,6 +104,7 @@ func Get(ctx context.Context, email string) (*User, *datastore.Key, error) {
 	return u, k, nil
 }
 
+// GetKey "Exported functions should have a comment"
 func GetKey(ctx context.Context, email string) (k *datastore.Key, err error) {
 	q := datastore.NewQuery("User").Filter("Email =", email).KeysOnly()
 	it := q.Run(ctx)
@@ -114,6 +119,7 @@ func GetKey(ctx context.Context, email string) (k *datastore.Key, err error) {
 	return
 }
 
+// GetAllKeys "Exported functions should have a comment"
 func GetAllKeys(ctx context.Context, tagIDs []*datastore.Key) (ks []*datastore.Key, err error) {
 	// Check what returns when done while using GetAll() !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	ks, err = datastore.NewQuery("User").
@@ -123,11 +129,13 @@ func GetAllKeys(ctx context.Context, tagIDs []*datastore.Key) (ks []*datastore.K
 	return
 }
 
+// Exist "Exported functions should have a comment"
 func Exist(ctx context.Context, email string) (c int, err error) {
 	c, err = datastore.NewQuery("User").Filter("Email =", email).Count(ctx)
 	return
 }
 
+// GetTagIDs "Exported functions should have a comment"
 func GetTagIDs(ctx context.Context, email string) ([]*datastore.Key, error) {
 	u := new(User)
 	q := datastore.NewQuery("User").Filter("Email =", email).Project("TagIDs")
