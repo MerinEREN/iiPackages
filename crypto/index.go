@@ -1,9 +1,9 @@
 /*
-Every package should have a package comment, a block comment preceding the package clause.
+Package crypto "Every package should have a package comment, a block comment preceding the package clause.
 For multi-file packages, the package comment only needs to be present in one file, and any
 one will do. The package comment should introduce the package and provide information
 relevant to the package as a whole. It will appear first on the godoc page and should set
-up the detailed documentation that follows.
+up the detailed documentation that follows."
 */
 package crypto
 
@@ -18,9 +18,10 @@ import (
 
 // Errors
 var (
-	ErrInvalidFileType = errors.New("Invalid file type to encrypt.")
+	ErrInvalidFileType = errors.New("invalid file type to encrypt")
 )
 
+// GetMAC generates and returns a hmac as a string.
 func GetMAC(i interface{}) (string, error) {
 	mac := hmac.New(sha256.New, []byte("someKey"))
 	switch v := i.(type) {
@@ -45,6 +46,7 @@ func CheckMAC(message interface{}, messageMAC string) bool {
 	return hmac.Equal([]byte(messageMAC), expectedMAC)
 }
 
+// GetSha generates and returns a sha256 as a string.
 func GetSha(i interface{}) (string, error) {
 	h := sha256.New()
 	switch v := i.(type) {

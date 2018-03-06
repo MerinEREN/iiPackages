@@ -16,7 +16,6 @@ a comment can often be perfunctory.
 */
 
 // Account key is Ancestor
-// UUID is Key Name
 type User struct {
 	ID                string           `datastore:"-"`
 	Email             string           `json:"email"`

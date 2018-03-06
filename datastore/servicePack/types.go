@@ -27,8 +27,8 @@ type ServicePack struct {
 	TagIDs         []*datastore.Key `json:"tagIDs"`
 	Score          score.Score      `json:"score"`
 	CustomerReview string           `json:"customerReview"`
-	Photos         photo.Photos     `datastore: "-" json:"photos"`
-	Videos         video.Videos     `datastore: "-" json:"videos"`
+	Photos         photo.Photos     `datastore:"-" json:"photos"`
+	Videos         video.Videos     `datastore:"-" json:"videos"`
 	// Extras         servicePackOption.ServicePackOptions `datastore: "-" json:"extras"`
 }
 

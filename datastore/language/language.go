@@ -11,6 +11,7 @@ package language
 import (
 	"errors"
 	"github.com/MerinEREN/iiPackages/session"
+	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
 	"time"
 )
@@ -20,15 +21,21 @@ var (
 	ErrFindLanguage = errors.New("Error while getting language")
 )
 
-// GetMulti "Exported functions should have a comment"
-func GetMulti(s *session.Session, c datastore.Cursor) (Languages, datastore.Cursor, error) {
+// GetMulti returns limited entitity from the given cursor.
+// If limit is nil default limit will be used.
+func GetMulti(s *session.Session, c datastore.Cursor, limit interface{}) (Languages, datastore.Cursor, error) {
 	ls := make(Languages)
 	// Maybe -LastModied should be the order ctireia if consider UX, think about that.
-	q := datastore.NewQuery("Language").Order("-Created")
+	q := datastore.NewQuery("Language").Project("Link").Order("-Created")
 	if c.String() != "" {
 		q = q.Start(c)
 	}
-	q = q.Limit(10)
+	if limit != nil {
+		l := limit.(int)
+		q = q.Limit(l)
+	} else {
+		q = q.Limit(10)
+	}
 	for it := q.Run(s.Ctx); ; {
 		l := new(Language)
 		k, err := it.Next(l)
@@ -56,12 +63,25 @@ name being declared."
 // Compile parses a regular expression and returns, if successful,
 // a Regexp that can be used to match against text.
 func Put(s *session.Session, l *Language) (*Language, error) {
+	k := datastore.NewKey(s.Ctx, "Language", l.Code, 0, nil)
+	var err error
+	l.LastModified = time.Now()
 	if s.R.Method == "POST" {
 		l.Created = time.Now()
+		_, err = datastore.Put(s.Ctx, k, l)
+	} else {
+		// For "PUT" request
+		tempL := new(Language)
+		err = datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (
+			err1 error) {
+			if err1 = datastore.Get(ctx, k, tempL); err1 != nil {
+				return
+			}
+			l.Created = tempL.Created
+			_, err1 = datastore.Put(ctx, k, l)
+			return
+		}, nil)
 	}
-	l.LastModified = time.Now()
-	k := datastore.NewKey(s.Ctx, "Language", l.Code, 0, nil)
-	k, err := datastore.Put(s.Ctx, k, l)
 	return l, err
 }
 
@@ -70,11 +90,15 @@ func Put(s *session.Session, l *Language) (*Language, error) {
 func PutAndGetMulti(s *session.Session, c datastore.Cursor, l *Language) (Languages,
 	datastore.Cursor, error) {
 	ls := make(Languages)
-	_, err := Put(s, l)
-	if err != nil {
-		return nil, c, err
-	}
-	ls, c, err = GetMulti(s, c)
+	err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) error {
+		l, err1 := Put(s, l)
+		if err1 != nil {
+			return err1
+		}
+		ls, c, err1 = GetMulti(s, c, 9)
+		ls[l.Code] = l
+		return err1
+	}, nil)
 	return ls, c, err
 }
 

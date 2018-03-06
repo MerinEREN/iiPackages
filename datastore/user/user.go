@@ -15,7 +15,6 @@ import (
 	// "github.com/MerinEREN/iiPackages/datastore/role"
 	// valid "github.com/asaskevich/govalidator"
 	// "github.com/MerinEREN/iiPackages/datastore/tag"
-	"github.com/nu7hatch/gouuid"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
 	// "io"
@@ -27,12 +26,12 @@ import (
 
 // Errors
 var (
-	ErrEmailNotExist   = errors.New("email Not Exist")
-	ErrInvalidEmail    = errors.New("invalid Email")
-	ErrInvalidPassword = errors.New("invalid Password")
+	ErrEmailNotExist   = errors.New("email not exist")
+	ErrEmailExist      = errors.New("email exist")
+	ErrInvalidEmail    = errors.New("invalid email")
+	ErrInvalidPassword = errors.New("invalid password")
 	ErrPutUser         = errors.New("error while putting user into the datastore")
 	ErrFindUser        = errors.New("error while checking email existincy")
-	// ErrExistingEmail   = errors.New("Existing Email")
 )
 
 // IsAdmin "Exported functions should have a comment"
@@ -60,16 +59,13 @@ func New(ctx context.Context, parentKey *datastore.Key, email, role string) (u *
 	key *datastore.Key, err error) {
 	var roles []string
 	roles = append(roles, role)
-	u, _, err = Get(ctx, email)
-	if err == datastore.Done {
-		u4 := new(uuid.UUID)
-		u4, err = uuid.NewV4()
-		if err != nil {
-			return
-		}
-		UUID := u4.String()
+	u, key, err = Get(ctx, email, parentKey)
+	switch err {
+	case nil:
+		err = ErrEmailExist
+	case datastore.ErrNoSuchEntity:
 		u = &User{
-			ID:           UUID,
+			ID:           email,
 			Email:        email,
 			Roles:        roles,
 			IsActive:     true,
@@ -77,17 +73,27 @@ func New(ctx context.Context, parentKey *datastore.Key, email, role string) (u *
 			LastModified: time.Now(),
 			// Password:     GetHmac(password),
 		}
-		key = datastore.NewKey(ctx, "User", UUID, 0, parentKey)
 		_, err = datastore.Put(ctx, key, u)
-		if err != nil {
-			return
-		}
 	}
 	return
 }
 
 // Get "Exported functions should have a comment"
-func Get(ctx context.Context, email string) (*User, *datastore.Key, error) {
+func Get(ctx context.Context, email string, parentKey *datastore.Key) (*User,
+	*datastore.Key, error) {
+	// BUG !!!!! If i made this function as naked return "u.ID = email" fails
+	// because of "u" !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	u := new(User)
+	k := new(datastore.Key)
+	var err error
+	k = datastore.NewKey(ctx, "User", email, 0, parentKey)
+	err = datastore.Get(ctx, k, u)
+	u.ID = email
+	return u, k, err
+}
+
+// GetWithEmail "Exported functions should have a comment"
+func GetWithEmail(ctx context.Context, email string) (*User, *datastore.Key, error) {
 	u := new(User)
 	q := datastore.NewQuery("User").Filter("Email =", email)
 	it := q.Run(ctx)

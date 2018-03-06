@@ -17,11 +17,10 @@ import (
 	valid "github.com/asaskevich/govalidator"
 	"google.golang.org/appengine/user"
 	// "github.com/nu7hatch/gouuid"
+	"github.com/nu7hatch/gouuid"
 	"google.golang.org/appengine/datastore"
 	// "log"
 	// "net/http"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -31,8 +30,7 @@ var (
 	ErrFindAccount = errors.New("error while getting account")
 )
 
-// CreateAccountAndUser MAKE THIS A TRANSACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// OR GENERATE A RANDOM ACCOUNT ID AND USE IT INSTEAD OF Account_XXX !!!!!!!!!!!!!!!!!!!!!!
+// CreateAccountAndUser creates an account for the new user in a transaction.
 /*
 Inside a package, any comment immediately preceding a top-level declaration serves as a
 doc comment for that declaration. Every exported (capitalized) name in a program should
@@ -43,60 +41,38 @@ name being declared.
 */
 // Compile parses a regular expression and returns, if successful,
 // a Regexp that can be used to match against text.
-func CreateAccountAndUser(ctx context.Context) (acc *Account, u *usr.User, uK *datastore.Key,
-	err error) {
-	// CAHANGE THIS CONTROL AND ALLOW SPECIAL CHARACTERS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	/* if !valid.IsAlphanumeric(password) {
-		err = usr.InvalidPassword
-		return
-	} */
-	var accKeyName string
-	key := new(datastore.Key)
-	q := datastore.NewQuery("Account").
-		Order("-Registered").
-		KeysOnly()
-	it := q.Run(ctx)
-	key, err = it.Next(nil)
-	if err != nil {
-		if err == datastore.Done {
-			accKeyName = "Account_1"
-		} else {
+func CreateAccountAndUser(ctx context.Context) (acc *Account, u *usr.User,
+	uK *datastore.Key, err error) {
+	err = datastore.RunInTransaction(ctx, func(ctx context.Context) (err1 error) {
+		// CAHANGE THIS CONTROL AND ALLOW SPECIAL CHARACTERS !!!!!!!!!!!!!!!!!!!!!!
+		/* if !valid.IsAlphanumeric(password) {
+			err1 = usr.InvalidPassword
+			return
+		} */
+		u4 := new(uuid.UUID)
+		if u4, err1 = uuid.NewV4(); err1 != nil {
 			return
 		}
-	} else {
-		s := strings.SplitAfter(key.StringID(), "_")
-		var i int
-		i, err = strconv.Atoi(s[1])
-		if err != nil {
+		UUID := u4.String()
+		acc = &Account{
+			ID:           UUID,
+			Registered:   time.Now(),
+			LastModified: time.Now(),
+		}
+		key := datastore.NewKey(ctx, "Account", UUID, 0, nil)
+		if _, err1 = datastore.Put(ctx, key, acc); err1 != nil {
 			return
 		}
-		i = i + 1
-		accKeyName = s[0] + strconv.Itoa(i)
-	}
-	acc = &Account{
-		ID:           accKeyName,
-		Registered:   time.Now(),
-		LastModified: time.Now(),
-	}
-	key = datastore.NewKey(ctx, "Account", accKeyName, 0, nil)
-	key, err = datastore.Put(ctx, key, acc)
-	if err != nil {
-		return
-	}
-	ug := user.Current(ctx)
-	email := ug.Email
-	// Email validation control not necessary actually.
-	if !valid.IsEmail(email) {
-		err = usr.ErrInvalidEmail
-		return
-	}
-	u, uK, err = usr.New(ctx, key, email, "admin")
-	if err != nil {
-		if errD := Delete(ctx, key); errD != nil {
-			err = errors.New(err.Error() + errD.Error())
+		ug := user.Current(ctx)
+		email := ug.Email
+		// Email validation control not necessary actually.
+		if !valid.IsEmail(email) {
+			err1 = usr.ErrInvalidEmail
+			return
 		}
+		u, uK, err1 = usr.New(ctx, key, email, "admin")
 		return
-	}
+	}, nil)
 	return
 }
 

@@ -1,9 +1,5 @@
 /*
-Every package should have a package comment, a block comment preceding the package clause.
-For multi-file packages, the package comment only needs to be present in one file, and any
-one will do. The package comment should introduce the package and provide information
-relevant to the package as a whole. It will appear first on the godoc page and should set
-up the detailed documentation that follows.
+Package datastore has utility functions to use with queries.
 */
 package datastore
 
@@ -11,6 +7,7 @@ import (
 	"google.golang.org/appengine/datastore"
 )
 
+// FilterMulti applays multiple filter operations on same property.
 func FilterMulti(q *datastore.Query, str string, slc interface{}) *datastore.Query {
 	switch s := slc.(type) {
 	case []*datastore.Key:

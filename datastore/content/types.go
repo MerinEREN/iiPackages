@@ -8,11 +8,13 @@ import (
 // And returns only the requested language as Value.
 // datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 type Content struct {
-	ID           string    `datastore:"-" json:"id"`
-	Value        string    `datastore:"-" json:"value"`
-	Created      time.Time `json:"created"`
-	LastModified time.Time `json:"lastModified"`
-	Values       map[string]string
+	ID           string `datastore:"-"`
+	Value        string `datastore:"-" json:"value"`
+	ValuesBS     []byte
+	Values       map[string]string `datastore:"-" json:"values"`
+	Created      time.Time         `json:"created"`
+	LastModified time.Time         `json:"lastModified"`
+	Pages        []string          `datastore:"-" json:"pages"`
 }
 
 // Contents is map[string]*Content.

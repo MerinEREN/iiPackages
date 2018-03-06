@@ -15,7 +15,7 @@ import (
 // Account is the struct for register accounts.
 // Hide name when sending.
 type Account struct {
-	ID           string            `datastore:"-" json:"id"`
+	ID           string            `datastore:"-"`
 	Photo        photo.Photo       `datastore:"-" json:"photo"`
 	Name         string            `json:"name"`
 	Addresses    address.Addresses `datastore:"-" json:"addresses"`

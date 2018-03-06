@@ -19,19 +19,19 @@ import (
 type Demand struct {
 	ID           string            `datastore:"-"`
 	Type         string            `json:"type"`
-	Title        string            `datastore: ",noindex" json:"title"`
-	Description  string            `datastore: ",noindex" json:"description"`
+	Title        string            `datastore:",noindex" json:"title"`
+	Description  string            `datastore:",noindex" json:"description"`
 	StartTime    time.Time         `json:"startTime"`
 	EndTime      time.Time         `json:"endTime"`
 	Price        price.Price       `json:"price"`
 	Addresses    address.Addresses `json:"addresses"`
 	Created      time.Time         `json:"created"`
-	LastModified time.Time         `datastore: ",noindex" json:"lastModified"`
+	LastModified time.Time         `datastore:",noindex" json:"lastModified"`
 	Status       string            `json:"status"`
 	Pic          string            `json:"pic"`
 	TagIDs       []*datastore.Key  `json:"tagIDs"`
-	Photos       photo.Photos      `datastore: "-" json:"photos"`
-	Videos       video.Videos      `datastore: "-" json:"videos"`
+	Photos       photo.Photos      `datastore:"-" json:"photos"`
+	Videos       video.Videos      `datastore:"-" json:"videos"`
 	// Tags           Tags              `datastore: "-" json:"tags"`
 }
 
