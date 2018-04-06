@@ -12,12 +12,19 @@ import (
 	"github.com/MerinEREN/iiPackages/session"
 	"log"
 	"net/http"
+	"strings"
 )
 
 // Handler handles PUT requests for a content.
 func Handler(s *session.Session) {
-	keyIntID := s.R.FormValue("ID")
-	err := content.Delete(s, keyIntID)
+	var err error
+	IDsAsString := s.R.FormValue("IDs")
+	IDx := strings.Split(IDsAsString, ",")
+	if len(IDx) == 1 {
+		err = content.Delete(s, IDx[0])
+	} else {
+		err = content.DeleteMulti(s, IDx)
+	}
 	if err != nil {
 		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 		http.Error(s.W, err.Error(), http.StatusInternalServerError)

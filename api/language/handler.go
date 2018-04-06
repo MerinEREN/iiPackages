@@ -13,15 +13,22 @@ import (
 	"github.com/MerinEREN/iiPackages/session"
 	"log"
 	"net/http"
+	"strings"
 )
 
 // Handler "Exported functions should have a comment"
 func Handler(s *session.Session) {
+	var err error
 	switch s.R.Method {
 	case "PUT":
 	case "DELETE":
-		langCode := s.R.FormValue("code")
-		err := language.Delete(s, langCode)
+		langCodesAsString := s.R.FormValue("IDs")
+		lcx := strings.Split(langCodesAsString, ",")
+		if len(lcx) == 1 {
+			err = language.Delete(s, lcx[0])
+		} else {
+			err = language.DeleteMulti(s, lcx)
+		}
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)

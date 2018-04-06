@@ -130,7 +130,7 @@ func PutMulti(s *session.Session, cx []*Content) (Contents, error) {
 }
 
 // PutMultiAndGetMulti is a transaction which puts the posted entities first
-// and then gets entities from the reseted cursor with the given limit.
+// and then gets entities from the reseted cursor by the given limit.
 // Finally returnes received entities with posted entities added to them
 // as a map.
 func PutMultiAndGetMulti(s *session.Session, c datastore.Cursor, cx []*Content) (
@@ -151,7 +151,7 @@ func PutMultiAndGetMulti(s *session.Session, c datastore.Cursor, cx []*Content) 
 	return csPut, c, err
 }
 
-// Delete removes the entity with the provided IntID as string and returns an error..
+// Delete removes the entity by the provided IntID as string and returns an error..
 func Delete(s *session.Session, keyIntID string) error {
 	IntID, err := strconv.ParseInt(keyIntID, 10, 64)
 	if err != nil {
@@ -159,4 +159,20 @@ func Delete(s *session.Session, keyIntID string) error {
 	}
 	k := datastore.NewKey(s.Ctx, "Content", "", IntID, nil)
 	return datastore.Delete(s.Ctx, k)
+}
+
+// DeleteMulti removes the entitys by the provided slice which contains IntIDs as string
+// and returns an error..
+func DeleteMulti(s *session.Session, IDx []string) error {
+	var err error
+	var IntID int64
+	var kx []*datastore.Key
+	for _, v := range IDx {
+		IntID, err = strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return err
+		}
+		kx = append(kx, datastore.NewKey(s.Ctx, "Content", "", IntID, nil))
+	}
+	return datastore.DeleteMulti(s.Ctx, kx)
 }

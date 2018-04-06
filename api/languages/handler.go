@@ -23,7 +23,7 @@ func Handler(s *session.Session) {
 	rb := new(api.ResponseBody)
 	switch s.R.Method {
 	case "POST":
-		langCode := s.R.FormValue("code")
+		langCode := s.R.FormValue("ID")
 		mpf, hdr, err := s.R.FormFile("file")
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
@@ -32,9 +32,9 @@ func Handler(s *session.Session) {
 		}
 		defer mpf.Close()
 		lang := &language.Language{
-			Code: langCode,
-			Mpf:  mpf,
-			Hdr:  hdr,
+			ID:  langCode,
+			Mpf: mpf,
+			Hdr: hdr,
 		}
 		lang.Link, err = storage.UploadFile(s, lang.Mpf, lang.Hdr)
 		if err != nil {

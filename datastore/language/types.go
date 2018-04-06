@@ -7,7 +7,7 @@ import (
 
 // Language "datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!"
 type Language struct {
-	Code         string                `datastore:"-" json:"code"`
+	ID           string                `datastore:"-"`
 	Mpf          multipart.File        `datastore:"-" json:"-"`
 	Hdr          *multipart.FileHeader `datastore:"-" json:"-"`
 	Link         string                `json:"link"`

@@ -47,8 +47,8 @@ func GetMulti(s *session.Session, c datastore.Cursor, limit interface{}) (Langua
 			err = ErrFindLanguage
 			return nil, c, err
 		}
-		l.Code = k.StringID()
-		ls[l.Code] = l
+		l.ID = k.StringID()
+		ls[l.ID] = l
 	}
 }
 
@@ -63,7 +63,7 @@ name being declared."
 // Compile parses a regular expression and returns, if successful,
 // a Regexp that can be used to match against text.
 func Put(s *session.Session, l *Language) (*Language, error) {
-	k := datastore.NewKey(s.Ctx, "Language", l.Code, 0, nil)
+	k := datastore.NewKey(s.Ctx, "Language", l.ID, 0, nil)
 	var err error
 	l.LastModified = time.Now()
 	if s.R.Method == "POST" {
@@ -86,7 +86,7 @@ func Put(s *session.Session, l *Language) (*Language, error) {
 }
 
 // PutAndGetMulti is a transaction which puts the posted item first
-// and then gets entities with the given limit.
+// and then gets entities by the given limit.
 func PutAndGetMulti(s *session.Session, c datastore.Cursor, l *Language) (Languages,
 	datastore.Cursor, error) {
 	ls := make(Languages)
@@ -96,7 +96,7 @@ func PutAndGetMulti(s *session.Session, c datastore.Cursor, l *Language) (Langua
 			return err1
 		}
 		ls, c, err1 = GetMulti(s, c, 9)
-		ls[l.Code] = l
+		ls[l.ID] = l
 		return err1
 	}, nil)
 	return ls, c, err
@@ -109,8 +109,18 @@ func GetCount(s *session.Session) (c int, err error) {
 	return
 }
 
-// Delete removes the language with the provided language code and returns an error.
+// Delete removes the entity by the provided language code and returns an error.
 func Delete(s *session.Session, langCode string) error {
 	k := datastore.NewKey(s.Ctx, "Language", langCode, 0, nil)
 	return datastore.Delete(s.Ctx, k)
+}
+
+// DeleteMulti removes the entitys by the provided language code slice
+// and returns an error.
+func DeleteMulti(s *session.Session, lcx []string) error {
+	var kx []*datastore.Key
+	for _, v := range lcx {
+		kx = append(kx, datastore.NewKey(s.Ctx, "Language", v, 0, nil))
+	}
+	return datastore.DeleteMulti(s.Ctx, kx)
 }
