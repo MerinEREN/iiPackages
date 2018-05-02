@@ -10,6 +10,7 @@ package page
 
 import (
 	"errors"
+	"github.com/MerinEREN/iiPackages/datastore/pageContent"
 	"github.com/MerinEREN/iiPackages/session"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
@@ -35,8 +36,8 @@ func GetMulti(s *session.Session, c datastore.Cursor, limit, kx interface{}) (Pa
 			return nil, c, err
 		}
 		for i, v := range kx {
-			px[i].ID = v.StringID()
-			ps[v.StringID()] = px[i]
+			px[i].ID = v.Encode()
+			ps[px[i].ID] = px[i]
 		}
 		return ps, c, err
 	}
@@ -64,7 +65,7 @@ func GetMulti(s *session.Session, c datastore.Cursor, limit, kx interface{}) (Pa
 			err = ErrFindPage
 			return nil, c, err
 		}
-		p.ID = k.StringID()
+		p.ID = k.Encode()
 		ps[p.ID] = p
 	}
 }
@@ -77,17 +78,20 @@ Doc comments work best as complete sentences, which allow a wide variety of auto
 presentations. The first sentence should be a one-sentence summary that starts with the
 name being declared."
 */
-// Compile parses a regular expression and returns, if successful,
-// a Regexp that can be used to match against text.
 func Put(s *session.Session, p *Page) (*Page, error) {
-	k := datastore.NewKey(s.Ctx, "Page", p.ID, 0, nil)
+	k := new(datastore.Key)
 	var err error
 	p.LastModified = time.Now()
 	if s.R.Method == "POST" {
+		k = datastore.NewIncompleteKey(s.Ctx, "Page", nil)
 		p.Created = time.Now()
-		_, err = datastore.Put(s.Ctx, k, p)
+		k, err = datastore.Put(s.Ctx, k, p)
+		p.ID = k.Encode()
 	} else if s.R.Method == "PUT" {
-		// For "PUT" request
+		k, err = datastore.DecodeKey(p.ID)
+		if err != nil {
+			return nil, err
+		}
 		tempP := new(Page)
 		err = datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (
 			err1 error) {
@@ -107,31 +111,83 @@ func Put(s *session.Session, p *Page) (*Page, error) {
 func PutAndGetMulti(s *session.Session, c datastore.Cursor, p *Page) (Pages,
 	datastore.Cursor, error) {
 	ps := make(Pages)
-	err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) error {
-		p, err1 := Put(s, p)
+	pNew := new(Page)
+	err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
+		pNew, err1 = Put(s, p)
 		if err1 != nil {
-			return err1
+			return
 		}
 		ps, c, err1 = GetMulti(s, c, 9, nil)
-		ps[p.ID] = p
-		return err1
+		return
 	}, nil)
+	ps[pNew.ID] = pNew
 	return ps, c, err
 }
 
-// Get returns the page with provided keyName and an error.
-func Get(s *session.Session, keyName string) (Pages, error) {
+// Get returns the page and an error by given encoded key.
+func Get(s *session.Session, keyEncoded string) (Pages, error) {
 	ps := make(Pages)
-	k := datastore.NewKey(s.Ctx, "Page", keyName, 0, nil)
+	k, err := datastore.DecodeKey(keyEncoded)
+	if err != nil {
+		return nil, err
+	}
 	p := new(Page)
-	err := datastore.Get(s.Ctx, k, p)
-	p.ID = k.StringID()
+	err = datastore.Get(s.Ctx, k, p)
+	p.ID = keyEncoded
 	ps[p.ID] = p
 	return ps, err
 }
 
-// Delete removes the page with the provided page id and returns an error.
-func Delete(s *session.Session, pageID string) error {
-	k := datastore.NewKey(s.Ctx, "Page", pageID, 0, nil)
-	return datastore.Delete(s.Ctx, k)
+// Delete removes the entity and all the corresponding pageContent entities
+// by the provided encoded key and returns an error.
+func Delete(s *session.Session, keyEncoded string) error {
+	k, err := datastore.DecodeKey(keyEncoded)
+	if err != nil {
+		return err
+	}
+	pckx, err := pageContent.GetKeysOnly(s, k)
+	if err != datastore.Done {
+		return err
+	}
+	opts := new(datastore.TransactionOptions)
+	opts.XG = true
+	return datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
+		err1 = datastore.DeleteMulti(ctx, pckx)
+		if err1 != nil {
+			return
+		}
+		err1 = datastore.Delete(ctx, k)
+		return
+	}, opts)
+}
+
+// DeleteMulti removes the entities and all the corresponding pageContent entities
+// by the provided encoded keys and returns an error.
+func DeleteMulti(s *session.Session, ekx []string) error {
+	var kx []*datastore.Key
+	var pckx []*datastore.Key
+	for _, v := range ekx {
+		k, err := datastore.DecodeKey(v)
+		if err != nil {
+			return err
+		}
+		kx = append(kx, k)
+		pckx2, err := pageContent.GetKeysOnly(s, k)
+		if err != datastore.Done {
+			return err
+		}
+		for _, v2 := range pckx2 {
+			pckx = append(pckx, v2)
+		}
+	}
+	opts := new(datastore.TransactionOptions)
+	opts.XG = true
+	return datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
+		err1 = datastore.DeleteMulti(ctx, pckx)
+		if err1 != nil {
+			return
+		}
+		err1 = datastore.DeleteMulti(ctx, kx)
+		return
+	}, opts)
 }

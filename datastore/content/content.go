@@ -12,27 +12,27 @@ import (
 	"github.com/MerinEREN/iiPackages/session"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
-	"strconv"
 	"time"
 )
 
 /*
-GetMulti returns corresponding page contents with all languages if content keys provided
+GetMulti returns corresponding page contents with values of all languages
+if content keys provided.
 Otherwise returns limited entitity from the given cursor.
 If limit is nil default limit will be used.
 */
 func GetMulti(s *session.Session, crsr datastore.Cursor, limit, kx interface{}) (
 	Contents, datastore.Cursor, error) {
 	cs := make(Contents)
-	var err error
-	var cx []*Content
 	if kx, ok := kx.([]*datastore.Key); ok {
+		var cx []*Content
 		// RETURNED ENTITY LIMIT COUD BE A PROBLEM HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!
-		if err = datastore.GetMulti(s.Ctx, kx, cx); err != nil {
+		err := datastore.GetMulti(s.Ctx, kx, cx)
+		if err != nil {
 			return nil, crsr, err
 		}
 		for i, v := range kx {
-			cs[strconv.FormatInt(v.IntID(), 10)] = cx[i]
+			cs[v.Encode()] = cx[i]
 		}
 		return cs, crsr, err
 	}
@@ -57,7 +57,7 @@ func GetMulti(s *session.Session, crsr datastore.Cursor, limit, kx interface{}) 
 		if err != nil {
 			return nil, crsr, err
 		}
-		c.ID = strconv.FormatInt(k.IntID(), 10)
+		c.ID = k.Encode()
 		cs[c.ID] = c
 	}
 }
@@ -67,20 +67,26 @@ PutMulti is a transaction that delets all PageContent entities for corresponding
 if only the request method is "PUT".
 And then creates and puts new ones.
 Finally, puts modified or newly created Contents and returns new Contents if request method
-is POST..
+is POST.
 */
 func PutMulti(s *session.Session, cx []*Content) (Contents, error) {
 	var kx []*datastore.Key
-	var keyIntID int64
+	var pckx []*datastore.Key
 	var err error
 	for _, v := range cx {
 		k := new(datastore.Key)
 		if s.R.Method == "PUT" {
-			keyIntID, err = strconv.ParseInt(v.ID, 10, 64)
+			k, err = datastore.DecodeKey(v.ID)
 			if err != nil {
 				return nil, err
 			}
-			k = datastore.NewKey(s.Ctx, "Content", "", keyIntID, nil)
+			pckx2, err := pageContent.GetKeysOnly(s, k)
+			if err != datastore.Done {
+				return nil, err
+			}
+			for _, v2 := range pckx2 {
+				pckx = append(pckx, v2)
+			}
 		} else {
 			k = datastore.NewIncompleteKey(s.Ctx, "Content", nil)
 			v.Created = time.Now()
@@ -88,40 +94,47 @@ func PutMulti(s *session.Session, cx []*Content) (Contents, error) {
 		kx = append(kx, k)
 		v.LastModified = time.Now()
 	}
+	opts := new(datastore.TransactionOptions)
+	opts.XG = true
 	err = datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
 		if s.R.Method == "PUT" {
-			err1 = pageContent.DeleteMulti(s, kx)
+			err1 = datastore.DeleteMulti(ctx, pckx)
 			if err1 != nil {
-				return err1
+				return
 			}
 		}
 		// Can not store incomplete keys in datastore.
 		// ALWAYS USE RETURNED KEYS.
-		kx, err1 = datastore.PutMulti(s.Ctx, kx, cx)
+		kx, err1 = datastore.PutMulti(ctx, kx, cx)
 		if err1 != nil {
-			return err1
+			return
 		}
 		for i, v := range cx {
-			for _, v2 := range v.Pages {
-				pcK := datastore.NewIncompleteKey(s.Ctx, "PageContent", nil)
+			for _, v2 := range v.PageIDs {
+				pck := datastore.NewIncompleteKey(ctx, "PageContent", nil)
 				pc := new(pageContent.PageContent)
-				pc.ContentID = strconv.FormatInt(kx[i].IntID(), 10)
-				pc.PageID = v2
-				_, err1 = datastore.Put(s.Ctx, pcK, pc)
+				pc.ContentKey = kx[i]
+				pk := new(datastore.Key)
+				pk, err1 = datastore.DecodeKey(v2)
 				if err1 != nil {
-					return err1
+					return
+				}
+				pc.PageKey = pk
+				_, err1 = datastore.Put(ctx, pck, pc)
+				if err1 != nil {
+					return
 				}
 			}
 		}
-		return err1
-	}, nil)
+		return
+	}, opts)
 	if err != nil {
 		return nil, err
 	}
 	if s.R.Method == "POST" {
 		cs := make(Contents)
 		for i, v := range cx {
-			v.ID = strconv.FormatInt(kx[i].IntID(), 10)
+			v.ID = kx[i].Encode()
 			cs[v.ID] = v
 		}
 		return cs, err
@@ -133,46 +146,53 @@ func PutMulti(s *session.Session, cx []*Content) (Contents, error) {
 // and then gets entities from the reseted cursor by the given limit.
 // Finally returnes received entities with posted entities added to them
 // as a map.
-func PutMultiAndGetMulti(s *session.Session, c datastore.Cursor, cx []*Content) (
+func PutMultiAndGetMulti(s *session.Session, crsr datastore.Cursor, cx []*Content) (
 	Contents, datastore.Cursor, error) {
 	csPut := make(Contents)
 	csGet := make(Contents)
 	err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
 		if csPut, err1 = PutMulti(s, cx); err1 != nil {
-			return err1
+			return
 		}
-		if csGet, c, err1 = GetMulti(s, c, nil, nil); err1 == nil {
+		if csGet, crsr, err1 = GetMulti(s, crsr, nil, nil); err1 == nil ||
+			err1 == datastore.Done {
 			for i, v := range csGet {
 				csPut[i] = v
 			}
 		}
-		return err1
+		return
 	}, nil)
-	return csPut, c, err
+	return csPut, crsr, err
 }
 
-// Delete removes the entity by the provided IntID as string and returns an error..
-func Delete(s *session.Session, keyIntID string) error {
-	IntID, err := strconv.ParseInt(keyIntID, 10, 64)
-	if err != nil {
-		return err
-	}
-	k := datastore.NewKey(s.Ctx, "Content", "", IntID, nil)
-	return datastore.Delete(s.Ctx, k)
-}
-
-// DeleteMulti removes the entitys by the provided slice which contains IntIDs as string
-// and returns an error..
-func DeleteMulti(s *session.Session, IDx []string) error {
-	var err error
-	var IntID int64
+// DeleteMulti removes the entities
+// and all the corresponding pageContent entities by the provided encoded keys
+// also returns an error.
+func DeleteMulti(s *session.Session, ekx []string) error {
 	var kx []*datastore.Key
-	for _, v := range IDx {
-		IntID, err = strconv.ParseInt(v, 10, 64)
+	var pckx []*datastore.Key
+	for _, v := range ekx {
+		k, err := datastore.DecodeKey(v)
 		if err != nil {
 			return err
 		}
-		kx = append(kx, datastore.NewKey(s.Ctx, "Content", "", IntID, nil))
+		kx = append(kx, k)
+		pckx2, err := pageContent.GetKeysOnly(s, k)
+		if err != datastore.Done {
+			return err
+		}
+		for _, v2 := range pckx2 {
+			pckx = append(pckx, v2)
+		}
 	}
-	return datastore.DeleteMulti(s.Ctx, kx)
+	opts := new(datastore.TransactionOptions)
+	opts.XG = true
+	return datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
+		err1 = datastore.DeleteMulti(ctx, pckx)
+		if err1 != nil {
+			return
+		}
+		err1 = datastore.DeleteMulti(ctx, kx)
+		return
+	}, opts)
 }

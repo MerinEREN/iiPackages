@@ -34,7 +34,7 @@ func GetMulti(s *session.Session, c datastore.Cursor, limit interface{}) (Langua
 		l := limit.(int)
 		q = q.Limit(l)
 	} else {
-		q = q.Limit(10)
+		q = q.Limit(20)
 	}
 	for it := q.Run(s.Ctx); ; {
 		l := new(Language)
@@ -90,15 +90,16 @@ func Put(s *session.Session, l *Language) (*Language, error) {
 func PutAndGetMulti(s *session.Session, c datastore.Cursor, l *Language) (Languages,
 	datastore.Cursor, error) {
 	ls := make(Languages)
-	err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) error {
-		l, err1 := Put(s, l)
+	lNew := new(Language)
+	err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
+		lNew, err1 = Put(s, l)
 		if err1 != nil {
-			return err1
+			return
 		}
-		ls, c, err1 = GetMulti(s, c, 9)
-		ls[l.ID] = l
-		return err1
+		ls, c, err1 = GetMulti(s, c, 19)
+		return
 	}, nil)
+	ls[lNew.ID] = lNew
 	return ls, c, err
 }
 

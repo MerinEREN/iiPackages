@@ -13,58 +13,58 @@ import (
 	"google.golang.org/appengine/datastore"
 )
 
-// Get returns the content's key's intID as a slice of string if pID is provided
-// or returns PageIDs as a slice if cID is provided and also an error.
-func Get(s *session.Session, pID, cID string) ([]string, error) {
-	var IDx []string
-	var err error
+// Get returns the content's keys as a slice if the page ID is provided
+// or returns the page's keys as a slice if content ID is provided and also an error.
+func Get(s *session.Session, keyEncoded string) ([]*datastore.Key, error) {
+	var kx []*datastore.Key
+	k, err := datastore.DecodeKey(keyEncoded)
+	if err != nil {
+		return nil, err
+	}
 	q := datastore.NewQuery("PageContent")
-	if pID != "" {
-		q = q.Filter("PageID =", pID).
-			Project("ContentID")
-	} else if cID != "" {
-		q = q.Filter("ContentID =", cID).
-			Project("PageID")
+	if k.Kind() == "Page" {
+		q = q.Filter("PageKey =", k).
+			Project("ContentKey")
+	} else {
+		q = q.Filter("ContentKey =", k).
+			Project("PageKey")
 	}
 	for it := q.Run(s.Ctx); ; {
 		pc := new(PageContent)
 		_, err = it.Next(pc)
 		if err == datastore.Done {
-			return IDx, err
+			return kx, err
 		}
 		if err != nil {
 			return nil, err
 		}
-		if pID != "" {
-			IDx = append(IDx, pc.ContentID)
-		} else if cID != "" {
-			IDx = append(IDx, pc.PageID)
+		if k.Kind() == "Page" {
+			kx = append(kx, pc.ContentKey)
+		} else {
+			kx = append(kx, pc.PageKey)
 		}
 	}
 }
 
-// DeleteMulti deletes all entities for provided content keys.
-func DeleteMulti(s *session.Session, kx []*datastore.Key) error {
-	it := new(datastore.Iterator)
-	k := new(datastore.Key)
-	var err error
+// GetKeysOnly returns corresponding pageContent keys by provided content or page key
+// and also returns an error.
+func GetKeysOnly(s *session.Session, k *datastore.Key) ([]*datastore.Key, error) {
+	var pckx []*datastore.Key
 	q := datastore.NewQuery("PageContent")
-	for _, v := range kx {
-		q.Filter("ContentID =", v).
-			KeysOnly()
-		for it = q.Run(s.Ctx); ; {
-			k, err = it.Next(nil)
-			if err == datastore.Done {
-				break
-			}
-			if err != nil {
-				return err
-			}
-			err = datastore.Delete(s.Ctx, k)
-			if err != nil {
-				return err
-			}
-		}
+	if k.Kind() == "Page" {
+		q = q.Filter("PageKey =", k)
+	} else {
+		q = q.Filter("ContentKey =", k)
 	}
-	return nil
+	q = q.KeysOnly()
+	for it := q.Run(s.Ctx); ; {
+		k, err := it.Next(nil)
+		if err == datastore.Done {
+			return pckx, err
+		}
+		if err != nil {
+			return nil, err
+		}
+		pckx = append(pckx, k)
+	}
 }

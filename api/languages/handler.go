@@ -16,6 +16,7 @@ import (
 	"google.golang.org/appengine/datastore"
 	"log"
 	"net/http"
+	"strings"
 )
 
 // Handler "Exported functions should have a comment"
@@ -24,29 +25,26 @@ func Handler(s *session.Session) {
 	switch s.R.Method {
 	case "POST":
 		langCode := s.R.FormValue("ID")
+		lang := &language.Language{
+			ID: langCode,
+		}
 		mpf, hdr, err := s.R.FormFile("file")
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer mpf.Close()
-		lang := &language.Language{
-			ID:  langCode,
-			Mpf: mpf,
-			Hdr: hdr,
-		}
-		lang.Link, err = storage.UploadFile(s, lang.Mpf, lang.Hdr)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
+		} else {
+			defer mpf.Close()
+			lang.Link, err = storage.UploadFile(s, mpf, hdr)
+			if err != nil {
+				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				http.Error(s.W, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 		// Reset the cursor and get the entities from the begining.
 		var c datastore.Cursor
 		var langs language.Languages
 		langs, c, err = language.PutAndGetMulti(s, c, lang)
-		if err != nil {
+		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
@@ -55,6 +53,24 @@ func Handler(s *session.Session) {
 		rb.Reset = true
 		rb.PrevPageURL = "/languages?c=" + c.String()
 		s.W.WriteHeader(http.StatusCreated)
+	case "DELETE":
+		var err error
+		langCodesAsString := s.R.FormValue("IDs")
+		lcx := strings.Split(langCodesAsString, ",")
+		if len(lcx) == 0 {
+			log.Printf("Path: %s, Error: no language code\n", s.R.URL.Path)
+			http.Error(s.W, "no language code", http.StatusBadRequest)
+		} else if len(lcx) == 1 {
+			err = language.Delete(s, lcx[0])
+		} else {
+			err = language.DeleteMulti(s, lcx)
+		}
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		s.W.WriteHeader(http.StatusNoContent)
 	default:
 		// Handles "GET" requests
 		if s.R.FormValue("action") == "getCount" {

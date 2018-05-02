@@ -43,31 +43,31 @@ name being declared.
 // a Regexp that can be used to match against text.
 func CreateAccountAndUser(ctx context.Context) (acc *Account, u *usr.User,
 	uK *datastore.Key, err error) {
+	ug := user.Current(ctx)
+	email := ug.Email
+	// Email validation control not necessary actually.
+	if !valid.IsEmail(email) {
+		err = usr.ErrInvalidEmail
+		return nil, nil, nil, err
+	}
+	// CAHANGE THIS CONTROL AND ALLOW SPECIAL CHARACTERS !!!!!!!!!!!!!!!!!!!!!!
+	/* if !valid.IsAlphanumeric(password) {
+		err = usr.InvalidPassword
+		return nil, nil, err
+	} */
+	u4 := new(uuid.UUID)
+	if u4, err = uuid.NewV4(); err != nil {
+		return nil, nil, nil, err
+	}
+	UUID := u4.String()
+	acc = &Account{
+		ID:           UUID,
+		Registered:   time.Now(),
+		LastModified: time.Now(),
+	}
+	key := datastore.NewKey(ctx, "Account", UUID, 0, nil)
 	err = datastore.RunInTransaction(ctx, func(ctx context.Context) (err1 error) {
-		// CAHANGE THIS CONTROL AND ALLOW SPECIAL CHARACTERS !!!!!!!!!!!!!!!!!!!!!!
-		/* if !valid.IsAlphanumeric(password) {
-			err1 = usr.InvalidPassword
-			return
-		} */
-		u4 := new(uuid.UUID)
-		if u4, err1 = uuid.NewV4(); err1 != nil {
-			return
-		}
-		UUID := u4.String()
-		acc = &Account{
-			ID:           UUID,
-			Registered:   time.Now(),
-			LastModified: time.Now(),
-		}
-		key := datastore.NewKey(ctx, "Account", UUID, 0, nil)
 		if _, err1 = datastore.Put(ctx, key, acc); err1 != nil {
-			return
-		}
-		ug := user.Current(ctx)
-		email := ug.Email
-		// Email validation control not necessary actually.
-		if !valid.IsEmail(email) {
-			err1 = usr.ErrInvalidEmail
 			return
 		}
 		u, uK, err1 = usr.New(ctx, key, email, "admin")

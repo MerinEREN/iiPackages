@@ -84,10 +84,8 @@ func Get(ctx context.Context, email string, parentKey *datastore.Key) (*User,
 	// BUG !!!!! If i made this function as naked return "u.ID = email" fails
 	// because of "u" !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	u := new(User)
-	k := new(datastore.Key)
-	var err error
-	k = datastore.NewKey(ctx, "User", email, 0, parentKey)
-	err = datastore.Get(ctx, k, u)
+	k := datastore.NewKey(ctx, "User", email, 0, parentKey)
+	err := datastore.Get(ctx, k, u)
 	u.ID = email
 	return u, k, err
 }

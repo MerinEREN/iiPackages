@@ -290,10 +290,8 @@ func Handler(s *session.Session) {
 				}
 			} */
 			var ua userAccount
-			ua.User = make(map[string]*user.User)
-			ua.User[u.ID] = u
-			ua.Account = make(map[string]*account.Account)
-			ua.Account[acc.ID] = acc
+			ua.User = u
+			ua.Account = acc
 			rb.Result = ua
 		}
 		/* t := &http.Transport{}

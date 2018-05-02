@@ -16,6 +16,7 @@ import (
 	"google.golang.org/appengine/datastore"
 	"log"
 	"net/http"
+	"strings"
 )
 
 // Handler "Exported functions should have a comment"
@@ -23,20 +24,21 @@ func Handler(s *session.Session) {
 	rb := new(api.ResponseBody)
 	switch s.R.Method {
 	case "POST":
-		keyName := s.R.FormValue("ID")
 		title := s.R.FormValue("title")
+		p := &page.Page{
+			Title: title,
+		}
 		mpf, hdr, err := s.R.FormFile("file")
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer mpf.Close()
-		p := &page.Page{
-			ID:    keyName,
-			Title: title,
-			Mpf:   mpf,
-			Hdr:   hdr,
+		} else {
+			defer mpf.Close()
+			p.Link, err = storage.UploadFile(s, mpf, hdr)
+			if err != nil {
+				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				http.Error(s.W, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 		/* bs, err := ioutil.ReadAll(s.R.Body)
 		if err != nil {
@@ -62,17 +64,11 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		} */
-		p.Link, err = storage.UploadFile(s, p.Mpf, p.Hdr)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
 		// Reset the cursor and get the entities from the begining.
 		var c datastore.Cursor
 		var ps page.Pages
 		ps, c, err = page.PutAndGetMulti(s, c, p)
-		if err != nil {
+		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
@@ -81,6 +77,20 @@ func Handler(s *session.Session) {
 		rb.Reset = true
 		rb.PrevPageURL = "/pages?d=prev&" + "c=" + c.String()
 		s.W.WriteHeader(http.StatusCreated)
+	case "DELETE":
+		IDsAsString := s.R.FormValue("IDs")
+		ekx := strings.Split(IDsAsString, ",")
+		if len(ekx) == 0 {
+			log.Printf("Path: %s, Error: no key\n", s.R.URL.Path)
+			http.Error(s.W, "no key", http.StatusBadRequest)
+		}
+		err := page.DeleteMulti(s, ekx)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		s.W.WriteHeader(http.StatusNoContent)
 	default:
 		// Handles "GET" requests
 		c, err := datastore.DecodeCursor(s.R.FormValue("c"))

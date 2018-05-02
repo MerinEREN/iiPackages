@@ -20,7 +20,7 @@ import (
 	// "io/ioutil"
 	"log"
 	"net/http"
-	"strconv"
+	"strings"
 )
 
 // Handler handles contents of pages and contents page.
@@ -58,14 +58,14 @@ func Handler(s *session.Session) {
 		// Reset the cursor and get the entities from the begining.
 		var crsr datastore.Cursor
 		cs, crsr, err = content.PutMultiAndGetMulti(s, crsr, cx)
-		if err != nil {
+		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		for _, v := range cs {
 			// If entity is from datastore.
-			if len(v.Pages) == 0 {
+			if len(v.PageIDs) == 0 {
 				contentValues := make(map[string]string)
 				err = json.Unmarshal(v.ValuesBS, &contentValues)
 				if err != nil {
@@ -74,17 +74,20 @@ func Handler(s *session.Session) {
 					return
 				}
 				v.Values = contentValues
-				IDx, err := pageContent.Get(s, "", v.ID)
-				if err != nil && err != datastore.Done {
+				kx, err := pageContent.Get(s, v.ID)
+				if err != datastore.Done {
 					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 					http.Error(s.W, err.Error(), http.StatusInternalServerError)
 					return
 				}
-				v.Pages = IDx
+				var ekx []string
+				for _, v := range kx {
+					ekx = append(ekx, v.Encode())
+				}
+				v.PageIDs = ekx
 			}
 		}
 		rb.Result = cs
-		rb.Reset = true
 		rb.PrevPageURL = "/pages?d=prev&" + "c=" + crsr.String()
 		s.W.WriteHeader(http.StatusCreated)
 		api.WriteResponse(s, rb)
@@ -116,7 +119,21 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		s.W.WriteHeader(http.StatusOK)
+		s.W.WriteHeader(http.StatusNoContent)
+	case "DELETE":
+		IDsAsString := s.R.FormValue("IDs")
+		ekx := strings.Split(IDsAsString, ",")
+		if len(ekx) == 0 {
+			log.Printf("Path: %s, Error: no key\n", s.R.URL.Path)
+			http.Error(s.W, "no key", http.StatusBadRequest)
+		}
+		err = content.DeleteMulti(s, ekx)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		s.W.WriteHeader(http.StatusNoContent)
 	default:
 		rb := new(api.ResponseBody)
 		cs := make(content.Contents)
@@ -127,26 +144,15 @@ func Handler(s *session.Session) {
 			return
 		}
 		if pID := s.R.FormValue("pageID"); pID != "" {
-			IDx, err := pageContent.Get(s, pID, "")
-			if err != nil && err != datastore.Done {
+			kx, err := pageContent.Get(s, pID)
+			if err != datastore.Done {
 				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			var kx []*datastore.Key
-			var contentKeyIntID int64
-			for _, v := range IDx {
-				contentKeyIntID, err = strconv.ParseInt(v, 11, 64)
-				if err != nil {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-					http.Error(s.W, err.Error(), http.StatusInternalServerError)
-					return
-				}
-				kx = append(kx, datastore.NewKey(s.Ctx, "Content", "", contentKeyIntID, nil))
-			}
 			if kx != nil {
-				cs, _, err = content.GetMulti(s, crsr, kx, nil)
-				if err != nil && err != datastore.Done {
+				cs, _, err = content.GetMulti(s, crsr, nil, kx)
+				if err != nil {
 					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 					http.Error(s.W, err.Error(), http.StatusInternalServerError)
 					return
@@ -178,13 +184,15 @@ func Handler(s *session.Session) {
 					return
 				}
 				v.Values = contentValues
-				IDx, err := pageContent.Get(s, "", v.ID)
-				if err != nil && err != datastore.Done {
+				kx, err := pageContent.Get(s, v.ID)
+				if err != datastore.Done {
 					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 					http.Error(s.W, err.Error(), http.StatusInternalServerError)
 					return
 				}
-				v.Pages = IDx
+				for _, v2 := range kx {
+					v.PageIDs = append(v.PageIDs, v2.Encode())
+				}
 			}
 			rb.PrevPageURL = "/contents?c=" + crsr.String()
 			rb.Result = cs

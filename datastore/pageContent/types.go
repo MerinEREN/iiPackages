@@ -1,11 +1,13 @@
 package pageContent
 
-// PageContent ContentID is content's key's intID as string
-// and PageID is page's key's stringID.
+import (
+	"google.golang.org/appengine/datastore"
+)
+
 // datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 type PageContent struct {
-	ContentID string
-	PageID    string
+	ContentKey *datastore.Key
+	PageKey    *datastore.Key
 }
 
 // PageContents is a []*PageContent

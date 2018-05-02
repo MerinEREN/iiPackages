@@ -14,7 +14,7 @@ type Content struct {
 	Values       map[string]string `datastore:"-" json:"values"`
 	Created      time.Time         `json:"created"`
 	LastModified time.Time         `json:"lastModified"`
-	Pages        []string          `datastore:"-" json:"pages"`
+	PageIDs      []string          `datastore:"-" json:"pageIDs"`
 }
 
 // Contents is map[string]*Content.

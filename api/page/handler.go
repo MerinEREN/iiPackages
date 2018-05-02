@@ -15,33 +15,32 @@ import (
 	"google.golang.org/appengine/datastore"
 	"log"
 	"net/http"
+	"strings"
 )
 
 // Handler "Exported functions should have a comment"
 func Handler(s *session.Session) {
-	keyName := s.R.FormValue("ID")
+	ID := strings.Split(s.R.URL.Path, "/")[2]
 	switch s.R.Method {
 	case "PUT":
+		// GET THE ENTITY AS BLOB OBJECT TO PREVENT RunInTransaction IN PUT FUNC !!
 		title := s.R.FormValue("title")
+		p := &page.Page{
+			ID:    ID,
+			Title: title,
+		}
 		mpf, hdr, err := s.R.FormFile("file")
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer mpf.Close()
-		p := &page.Page{
-			ID:    keyName,
-			Title: title,
-			Mpf:   mpf,
-			Hdr:   hdr,
-		}
-		// CHECK THE STORAGE AND IF THE FILE PRESENT DO NOT UPLOAD THE FILE !!!!!!!
-		p.Link, err = storage.UploadFile(s, p.Mpf, p.Hdr)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
+		} else {
+			defer mpf.Close()
+			// CHECK THE STORAGE AND IF THE FILE PRESENT DO NOT UPLOAD THE FILE
+			p.Link, err = storage.UploadFile(s, mpf, hdr)
+			if err != nil {
+				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				http.Error(s.W, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 		p, err = page.Put(s, p)
 		if err != nil {
@@ -56,7 +55,7 @@ func Handler(s *session.Session) {
 		// s.W.WriteHeader(http.StatusOK)
 		api.WriteResponse(s, rb)
 	case "DELETE":
-		err := page.Delete(s, keyName)
+		err := page.Delete(s, ID)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -66,7 +65,7 @@ func Handler(s *session.Session) {
 		s.W.WriteHeader(http.StatusNoContent)
 	default:
 		// Handles "GET" requests
-		ps, err := page.Get(s, keyName)
+		ps, err := page.Get(s, ID)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
