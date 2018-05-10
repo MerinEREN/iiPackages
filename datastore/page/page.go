@@ -139,20 +139,37 @@ func Get(s *session.Session, keyEncoded string) (Pages, error) {
 }
 
 // Delete removes the entity and all the corresponding pageContent entities
-// by the provided encoded key and returns an error.
+// by the provided encoded key
+// and if a content only been included in that page also gonna be removed.
+// As a return returns an error.
 func Delete(s *session.Session, keyEncoded string) error {
 	k, err := datastore.DecodeKey(keyEncoded)
 	if err != nil {
 		return err
 	}
-	pckx, err := pageContent.GetKeysOnly(s, k)
+	pckx, ckx, err := pageContent.Get(s, keyEncoded)
 	if err != datastore.Done {
 		return err
+	}
+	var count int
+	var ckx2 []*datastore.Key
+	for _, v := range ckx {
+		count, err = pageContent.GetCount(s, v)
+		if err != nil {
+			return err
+		}
+		if count == 1 {
+			ckx2 = append(ckx2, v)
+		}
 	}
 	opts := new(datastore.TransactionOptions)
 	opts.XG = true
 	return datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
 		err1 = datastore.DeleteMulti(ctx, pckx)
+		if err1 != nil {
+			return
+		}
+		err1 = datastore.DeleteMulti(ctx, ckx2)
 		if err1 != nil {
 			return
 		}
@@ -162,28 +179,47 @@ func Delete(s *session.Session, keyEncoded string) error {
 }
 
 // DeleteMulti removes the entities and all the corresponding pageContent entities
-// by the provided encoded keys and returns an error.
+// by the provided encoded keys.
+// And if a content only been included in one of the deleted pages also gonna be removed.
+// As a return returns an error.
 func DeleteMulti(s *session.Session, ekx []string) error {
 	var kx []*datastore.Key
 	var pckx []*datastore.Key
+	var ckx []*datastore.Key
+	var count int
+	var pckx2 []*datastore.Key
+	var ckx2 []*datastore.Key
 	for _, v := range ekx {
 		k, err := datastore.DecodeKey(v)
 		if err != nil {
 			return err
 		}
 		kx = append(kx, k)
-		pckx2, err := pageContent.GetKeysOnly(s, k)
+		pckx2, ckx2, err = pageContent.Get(s, v)
 		if err != datastore.Done {
 			return err
 		}
 		for _, v2 := range pckx2 {
 			pckx = append(pckx, v2)
 		}
+		for _, v3 := range ckx2 {
+			count, err = pageContent.GetCount(s, v3)
+			if err != nil {
+				return err
+			}
+			if count == 1 {
+				ckx = append(ckx, v3)
+			}
+		}
 	}
 	opts := new(datastore.TransactionOptions)
 	opts.XG = true
 	return datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
 		err1 = datastore.DeleteMulti(ctx, pckx)
+		if err1 != nil {
+			return
+		}
+		err1 = datastore.DeleteMulti(ctx, ckx)
 		if err1 != nil {
 			return
 		}

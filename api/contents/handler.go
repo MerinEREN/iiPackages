@@ -74,7 +74,7 @@ func Handler(s *session.Session) {
 					return
 				}
 				v.Values = contentValues
-				kx, err := pageContent.Get(s, v.ID)
+				_, kx, err := pageContent.Get(s, v.ID)
 				if err != datastore.Done {
 					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 					http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -144,7 +144,7 @@ func Handler(s *session.Session) {
 			return
 		}
 		if pID := s.R.FormValue("pageID"); pID != "" {
-			kx, err := pageContent.Get(s, pID)
+			_, kx, err := pageContent.Get(s, pID)
 			if err != datastore.Done {
 				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -184,7 +184,7 @@ func Handler(s *session.Session) {
 					return
 				}
 				v.Values = contentValues
-				kx, err := pageContent.Get(s, v.ID)
+				_, kx, err := pageContent.Get(s, v.ID)
 				if err != datastore.Done {
 					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 					http.Error(s.W, err.Error(), http.StatusInternalServerError)

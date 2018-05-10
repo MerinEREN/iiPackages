@@ -15,11 +15,12 @@ import (
 
 // Get returns the content's keys as a slice if the page ID is provided
 // or returns the page's keys as a slice if content ID is provided and also an error.
-func Get(s *session.Session, keyEncoded string) ([]*datastore.Key, error) {
+func Get(s *session.Session, keyEncoded string) ([]*datastore.Key, []*datastore.Key, error) {
+	var pckx []*datastore.Key
 	var kx []*datastore.Key
 	k, err := datastore.DecodeKey(keyEncoded)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	q := datastore.NewQuery("PageContent")
 	if k.Kind() == "Page" {
@@ -31,18 +32,19 @@ func Get(s *session.Session, keyEncoded string) ([]*datastore.Key, error) {
 	}
 	for it := q.Run(s.Ctx); ; {
 		pc := new(PageContent)
-		_, err = it.Next(pc)
+		pck, err := it.Next(pc)
 		if err == datastore.Done {
-			return kx, err
+			return pckx, kx, err
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if k.Kind() == "Page" {
 			kx = append(kx, pc.ContentKey)
 		} else {
 			kx = append(kx, pc.PageKey)
 		}
+		pckx = append(pckx, pck)
 	}
 }
 
@@ -67,4 +69,16 @@ func GetKeysOnly(s *session.Session, k *datastore.Key) ([]*datastore.Key, error)
 		}
 		pckx = append(pckx, k)
 	}
+}
+
+// GetCount returns the count of the entities that has provided key and an error.
+func GetCount(s *session.Session, k *datastore.Key) (c int, err error) {
+	q := datastore.NewQuery("PageContent")
+	if k.Kind() == "Page" {
+		q = q.Filter("PageKey =", k)
+	} else {
+		q = q.Filter("ContentKey =", k)
+	}
+	c, err = q.Count(s.Ctx)
+	return
 }
