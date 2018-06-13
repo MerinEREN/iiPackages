@@ -26,7 +26,7 @@ var (
 func GetMulti(s *session.Session, c datastore.Cursor, limit interface{}) (Languages, datastore.Cursor, error) {
 	ls := make(Languages)
 	// Maybe -LastModied should be the order ctireia if consider UX, think about that.
-	q := datastore.NewQuery("Language").Project("Link").Order("-Created")
+	q := datastore.NewQuery("Language").Project("Name", "Link").Order("-Created")
 	if c.String() != "" {
 		q = q.Start(c)
 	}

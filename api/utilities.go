@@ -22,19 +22,17 @@ func WriteResponse(s *session.Session, rb *ResponseBody) {
 	s.W.Write(bs)
 }
 
-// GetLangValue sends the requested language value only.
-func GetLangValue(cs content.Contents, code string) (content.Contents, error) {
-	contentsClient := make(map[string]*content.Content)
+// GetLangValue sends the requested language value of the contents only.
+func GetLangValue(cs content.Contents, lang string) (map[string]string, error) {
+	contentsClient := make(map[string]string)
 	var err error
-	for _, v := range cs {
-		err = json.Unmarshal(v.ValuesBS, v.Values)
+	for i, v := range cs {
+		contentValues := make(map[string]string)
+		err = json.Unmarshal(v.ValuesBS, &contentValues)
 		if err != nil {
 			return nil, err
 		}
-		contentsClient[v.ID].ID = v.ID
-		contentsClient[v.ID].Value = v.Values[code]
-		contentsClient[v.ID].LastModified = v.LastModified
-		contentsClient[v.ID].Created = v.Created
+		contentsClient[i] = contentValues[lang]
 	}
 	return contentsClient, err
 }

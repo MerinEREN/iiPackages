@@ -16,7 +16,7 @@ import (
 )
 
 /*
-GetMulti returns corresponding page contents with values of all languages
+GetMulti returns corresponding contents with values of all languages
 if content keys provided.
 Otherwise returns limited entitity from the given cursor.
 If limit is nil default limit will be used.
@@ -25,8 +25,8 @@ func GetMulti(s *session.Session, crsr datastore.Cursor, limit, kx interface{}) 
 	Contents, datastore.Cursor, error) {
 	cs := make(Contents)
 	if kx, ok := kx.([]*datastore.Key); ok {
-		var cx []*Content
-		// RETURNED ENTITY LIMIT COUD BE A PROBLEM HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!
+		cx := make([]*Content, len(kx))
+		// RETURNED ENTITY LIMIT COULD BE A PROBLEM HERE !!!!!!!!!!!!!!!!!!!!!!!!!!
 		err := datastore.GetMulti(s.Ctx, kx, cx)
 		if err != nil {
 			return nil, crsr, err

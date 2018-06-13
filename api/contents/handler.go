@@ -143,8 +143,15 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		cookie, err := s.R.Cookie("lang")
+		if err == http.ErrNoCookie {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		if pID := s.R.FormValue("pageID"); pID != "" {
-			_, kx, err := pageContent.Get(s, pID)
+			k := datastore.NewKey(s.Ctx, "Page", pID, 0, nil)
+			_, kx, err := pageContent.Get(s, k)
 			if err != datastore.Done {
 				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -157,8 +164,7 @@ func Handler(s *session.Session) {
 					http.Error(s.W, err.Error(), http.StatusInternalServerError)
 					return
 				}
-				lCode := s.R.FormValue("lCode")
-				contentsClient, err := api.GetLangValue(cs, lCode)
+				contentsClient, err := api.GetLangValue(cs, cookie.Value)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 					http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -166,7 +172,8 @@ func Handler(s *session.Session) {
 				}
 				rb.Result = contentsClient
 			} else {
-				rb.Result = nil
+				// Returning an empty map.
+				rb.Result = cs
 			}
 		} else {
 			cs, crsr, err = content.GetMulti(s, crsr, nil, nil)

@@ -14,6 +14,7 @@ import (
 	"github.com/MerinEREN/iiPackages/session"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
+	"strings"
 	"time"
 )
 
@@ -27,17 +28,18 @@ GetMulti returns corresponding pages if page keys provided
 Otherwise returns limited entitity from the given cursor.
 If limit is nil default limit will be used.
 */
-func GetMulti(s *session.Session, c datastore.Cursor, limit, kx interface{}) (Pages, datastore.Cursor, error) {
+func GetMulti(s *session.Session, c datastore.Cursor, limit, kx interface{}) (
+	Pages, datastore.Cursor, error) {
 	ps := make(Pages)
 	if kx, ok := kx.([]*datastore.Key); ok {
-		var px []*Page
+		px := make([]*Page, len(kx))
+		// RETURNED ENTITY LIMIT COULD BE A PROBLEM HERE !!!!!!!!!!!!!!!!!!!!!!!!!!
 		err := datastore.GetMulti(s.Ctx, kx, px)
 		if err != nil {
 			return nil, c, err
 		}
 		for i, v := range kx {
-			px[i].ID = v.Encode()
-			ps[px[i].ID] = px[i]
+			ps[v.Encode()] = px[i]
 		}
 		return ps, c, err
 	}
@@ -83,7 +85,8 @@ func Put(s *session.Session, p *Page) (*Page, error) {
 	var err error
 	p.LastModified = time.Now()
 	if s.R.Method == "POST" {
-		k = datastore.NewIncompleteKey(s.Ctx, "Page", nil)
+		stringID := strings.ToLower(strings.Replace(p.Title, " ", "", -1))
+		k = datastore.NewKey(s.Ctx, "Page", stringID, 0, nil)
 		p.Created = time.Now()
 		k, err = datastore.Put(s.Ctx, k, p)
 		p.ID = k.Encode()

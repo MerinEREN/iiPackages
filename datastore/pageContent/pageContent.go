@@ -13,22 +13,28 @@ import (
 	"google.golang.org/appengine/datastore"
 )
 
-// Get returns the content's keys as a slice if the page ID is provided
+// Get returns the content's keys as a slice if the page key is provided
 // or returns the page's keys as a slice if content ID is provided and also an error.
-func Get(s *session.Session, keyEncoded string) ([]*datastore.Key, []*datastore.Key, error) {
+func Get(s *session.Session, key interface{}) ([]*datastore.Key, []*datastore.Key, error) {
 	var pckx []*datastore.Key
 	var kx []*datastore.Key
-	k, err := datastore.DecodeKey(keyEncoded)
-	if err != nil {
-		return nil, nil, err
-	}
+	var k *datastore.Key
+	var err error
 	q := datastore.NewQuery("PageContent")
-	if k.Kind() == "Page" {
-		q = q.Filter("PageKey =", k).
-			Project("ContentKey")
-	} else {
+	switch v := key.(type) {
+	case string:
+		// Content Kind
+		k, err = datastore.DecodeKey(v)
+		if err != nil {
+			return nil, nil, err
+		}
 		q = q.Filter("ContentKey =", k).
 			Project("PageKey")
+	case *datastore.Key:
+		// Page Kind
+		k = v
+		q = q.Filter("PageKey =", k).
+			Project("ContentKey")
 	}
 	for it := q.Run(s.Ctx); ; {
 		pc := new(PageContent)

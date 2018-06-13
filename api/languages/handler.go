@@ -25,8 +25,10 @@ func Handler(s *session.Session) {
 	switch s.R.Method {
 	case "POST":
 		langCode := s.R.FormValue("ID")
+		name := s.R.FormValue("name")
 		lang := &language.Language{
-			ID: langCode,
+			ID:   langCode,
+			Name: name,
 		}
 		mpf, hdr, err := s.R.FormFile("file")
 		if err != nil {
