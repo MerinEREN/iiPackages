@@ -103,12 +103,12 @@ func PutAndGetMulti(s *session.Session, c datastore.Cursor, l *Language) (Langua
 	return ls, c, err
 }
 
-// GetCount "Exported functions should have a comment"
-func GetCount(s *session.Session) (c int, err error) {
+// GetCount returns language count and an error.
+/* func GetCount(s *session.Session) (c int, err error) {
 	q := datastore.NewQuery("Language")
 	c, err = q.Count(s.Ctx)
 	return
-}
+} */
 
 // Delete removes the entity by the provided language code and returns an error.
 func Delete(s *session.Session, langCode string) error {

@@ -83,6 +83,7 @@ func Handler(s *session.Session) {
 		if len(ekx) == 0 {
 			log.Printf("Path: %s, Error: no key\n", s.R.URL.Path)
 			http.Error(s.W, "no key", http.StatusBadRequest)
+			return
 		}
 		err := page.DeleteMulti(s, ekx)
 		if err != nil {

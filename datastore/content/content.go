@@ -42,10 +42,10 @@ func GetMulti(s *session.Session, crsr datastore.Cursor, limit, kx interface{}) 
 		q = q.Start(crsr)
 	}
 	if limit != nil {
-		l := limit.(int)
-		q = q.Limit(l)
+		// l := limit.(int)
+		// q = q.Limit(l)
 	} else {
-		q = q.Limit(20)
+		// q = q.Limit(20)
 	}
 	for it := q.Run(s.Ctx); ; {
 		c := new(Content)
