@@ -111,3 +111,28 @@ func GetOldest(ctx context.Context, cEnd datastore.Cursor, uTagIDs []*datastore.
 		os[o.ID] = o
 	}
 }
+
+// GetViaParent returns limited entities from the previous cursor
+// with given filters and order.
+func GetViaParent(ctx context.Context, crsr datastore.Cursor, pk *datastore.Key) (
+	Offers, datastore.Cursor, error) {
+	os := make(Offers)
+	q := datastore.NewQuery("Offer")
+	q = q.Ancestor(pk).
+		Order("-LastModified").
+		Start(crsr).
+		Limit(10)
+	for it := q.Run(ctx); ; {
+		o := new(Offer)
+		k, err := it.Next(o)
+		if err == datastore.Done {
+			crsr, err = it.Cursor()
+			return os, crsr, err
+		}
+		if err != nil {
+			return nil, crsr, err
+		}
+		o.ID = k.Encode()
+		os[o.ID] = o
+	}
+}

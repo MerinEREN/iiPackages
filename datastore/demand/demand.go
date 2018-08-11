@@ -39,7 +39,7 @@ func Get(ctx context.Context, uTagIDs []*datastore.Key) (
 		if err != nil {
 			return nil, cStart, cEnd, err
 		}
-		d.ID = k.StringID()
+		d.ID = k.Encode()
 		ds[d.ID] = d
 	}
 }
@@ -68,7 +68,7 @@ func GetNewest(ctx context.Context, cStart datastore.Cursor, uTagIDs []*datastor
 		if err != nil {
 			return nil, cStart, err
 		}
-		d.ID = k.StringID()
+		d.ID = k.Encode()
 		ds[d.ID] = d
 	}
 }
@@ -107,7 +107,32 @@ func GetOldest(ctx context.Context, cEnd datastore.Cursor, uTagIDs []*datastore.
 		if err != nil {
 			return nil, cEnd, err
 		}
-		d.ID = k.StringID()
+		d.ID = k.Encode()
+		ds[d.ID] = d
+	}
+}
+
+// GetViaParent returns limited entities via account key as parent from the previous cursor
+// with given filters and order.
+func GetViaParent(ctx context.Context, crsr datastore.Cursor, pk *datastore.Key) (
+	Demands, datastore.Cursor, error) {
+	ds := make(Demands)
+	q := datastore.NewQuery("Demand")
+	q = q.Ancestor(pk).
+		Order("-LastModified").
+		Start(crsr).
+		Limit(10)
+	for it := q.Run(ctx); ; {
+		d := new(Demand)
+		k, err := it.Next(d)
+		if err == datastore.Done {
+			crsr, err = it.Cursor()
+			return ds, crsr, err
+		}
+		if err != nil {
+			return nil, crsr, err
+		}
+		d.ID = k.Encode()
 		ds[d.ID] = d
 	}
 }

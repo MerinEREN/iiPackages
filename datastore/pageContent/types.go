@@ -4,7 +4,7 @@ import (
 	"google.golang.org/appengine/datastore"
 )
 
-// datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// PageContent datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 type PageContent struct {
 	ContentKey *datastore.Key
 	PageKey    *datastore.Key

@@ -2,9 +2,9 @@ package photo
 
 import "time"
 
-// Status is active or deactive
+// Photo Status is active or deactive
 type Photo struct {
-	Path         string    `json:"path"`
+	Link         string    `json:"link"`
 	Title        string    `json:"title"`
 	Description  string    `json:"description"`
 	Uploaded     time.Time `json:"uploaded"`
@@ -12,4 +12,5 @@ type Photo struct {
 	Status       string    `json:"status"`
 }
 
+// Photos is a photos map with encoded photo key as map key.
 type Photos map[string]*Photo

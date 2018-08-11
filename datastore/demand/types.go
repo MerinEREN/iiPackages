@@ -15,7 +15,7 @@ import (
 // Status is underConsideration, active, rejected, changed, removed, finished,
 // disaproved.
 // Pic is Person In Charge whom aprove this
-// User key is Ancestor
+// Account key is Ancestor
 type Demand struct {
 	ID           string            `datastore:"-"`
 	Type         string            `json:"type"`

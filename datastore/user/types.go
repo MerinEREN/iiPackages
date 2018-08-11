@@ -1,7 +1,6 @@
 package user
 
 import (
-	// "github.com/MerinEREN/iiPackages/datastore/demand"
 	"github.com/MerinEREN/iiPackages/datastore/phone"
 	"github.com/MerinEREN/iiPackages/datastore/photo"
 	"github.com/MerinEREN/iiPackages/datastore/tag"
@@ -15,17 +14,16 @@ a group of related constants or variables. Since the whole declaration is presen
 a comment can often be perfunctory.
 */
 
-// Account key is Ancestor
+// User account key is Ancestor
 type User struct {
 	ID                string           `datastore:"-"`
 	Email             string           `json:"email"`
-	Photo             photo.Photo      `datastore:"-" json:"photo"`
 	Name              Name             `datastore:",noindex" json:"name"`
+	Photo             photo.Photo      `datastore:"-" json:"photo"`
 	Gender            string           `json:"gender"`
 	Status            string           `json:"status"`
 	Type              string           `json:"type"`
 	Roles             []string         `json:"roles"`
-	TagIDs            []*datastore.Key `json:"-"`
 	Tags              tag.Tags         `datastore:"-" json:"tags"`
 	BirthDate         time.Time        `datastore:",noindex" json:"birthDate"`
 	Registered        time.Time        `datastore:",noindex" json:"registered"`
@@ -41,13 +39,16 @@ type User struct {
 	// ServicePacks ServicePacks `datastore:"-" json:"servicepacks""`
 }
 
+// Name is user name struct with "First" and "Last" fields.
 type Name struct {
 	First string `json:"first"`
 	Last  string `json:"last"`
 }
 
+// Users is a users map with encoded user key as map key.
 type Users map[string]*User
 
+// Entity interface to implement all structs i guess.
 type Entity interface {
 	// Use this for all structs
 	// Update()

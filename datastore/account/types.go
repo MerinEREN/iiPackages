@@ -1,7 +1,6 @@
 package account
 
 import (
-	//"github.com/MerinEREN/iiPackages/datastore/user"
 	"github.com/MerinEREN/iiPackages/datastore/address"
 	"github.com/MerinEREN/iiPackages/datastore/photo"
 	"github.com/MerinEREN/iiPackages/datastore/rank"
@@ -14,16 +13,18 @@ import (
 
 // Account is the struct for register accounts.
 // Hide name when sending.
+// Type values are "individual" and "corporate".
 type Account struct {
 	ID           string            `datastore:"-"`
-	Photo        photo.Photo       `datastore:"-" json:"photo"`
 	Name         string            `json:"name"`
+	Type         string            `json:"type"`
+	Photo        photo.Photo       `datastore:"-" json:"photo"`
 	Addresses    address.Addresses `datastore:"-" json:"addresses"`
 	Status       string            `json:"status"`
 	About        string            `json:"about"`
-	Score        score.Score       `datastore:"-" json:"score"`
 	Registered   time.Time         `json:"registered"`
 	LastModified time.Time         `json:"lastModified"`
+	Score        score.Score       `datastore:"-" json:"score"`
 	RankIDs      []*datastore.Key  `json:"rankIDs"`
 	Ranks        rank.Ranks        `datastore:"-" json:"ranks"`
 	BankAccounts []BankAccount     `json:"bankAccount" valid:"bankAccount"`

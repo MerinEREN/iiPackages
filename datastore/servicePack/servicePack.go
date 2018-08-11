@@ -111,3 +111,28 @@ func GetOldest(ctx context.Context, cEnd datastore.Cursor, uTagIDs []*datastore.
 		sps[sp.ID] = sp
 	}
 }
+
+// GetViaParent returns limited entities from the previous cursor
+// with given filters and order.
+func GetViaParent(ctx context.Context, crsr datastore.Cursor, pk *datastore.Key) (
+	ServicePacks, datastore.Cursor, error) {
+	sps := make(ServicePacks)
+	q := datastore.NewQuery("ServicePack")
+	q = q.Ancestor(pk).
+		Order("-LastModified").
+		Start(crsr).
+		Limit(10)
+	for it := q.Run(ctx); ; {
+		sp := new(ServicePack)
+		k, err := it.Next(sp)
+		if err == datastore.Done {
+			crsr, err = it.Cursor()
+			return sps, crsr, err
+		}
+		if err != nil {
+			return nil, crsr, err
+		}
+		sp.ID = k.Encode()
+		sps[sp.ID] = sp
+	}
+}

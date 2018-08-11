@@ -1,9 +1,5 @@
 /*
-Every package should have a package comment, a block comment preceding the package clause.
-For multi-file packages, the package comment only needs to be present in one file, and any
-one will do. The package comment should introduce the package and provide information
-relevant to the package as a whole. It will appear first on the godoc page and should set
-up the detailed documentation that follows.
+Package session contains session struckt and it's methods.
 */
 package session
 
@@ -13,6 +9,7 @@ import (
 	"net/http"
 )
 
+// Session struct has Context, Request, ResponseWriter and logged User fields.
 type Session struct {
 	Ctx context.Context
 	R   *http.Request

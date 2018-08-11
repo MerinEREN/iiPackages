@@ -13,8 +13,9 @@ import (
 	"google.golang.org/appengine/datastore"
 )
 
-// Get returns the content's keys as a slice if the page key is provided
-// or returns the page's keys as a slice if content ID is provided and also an error.
+// Get returns the content keys as a slice if the page key is provided
+// or returns the page keys as a slice if content ID is provided and an error.
+// Also as a first argument returns PageContent keys as a slice.
 func Get(s *session.Session, key interface{}) ([]*datastore.Key, []*datastore.Key, error) {
 	var pckx []*datastore.Key
 	var kx []*datastore.Key
