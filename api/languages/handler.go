@@ -43,9 +43,9 @@ func Handler(s *session.Session) {
 			}
 		}
 		// Reset the cursor and get the entities from the begining.
-		var c datastore.Cursor
+		var crsr datastore.Cursor
 		var langs language.Languages
-		langs, c, err = language.PutAndGetMulti(s, c, lang)
+		langs, crsr, err = language.PutAndGetMulti(s, crsr, lang)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -53,7 +53,7 @@ func Handler(s *session.Session) {
 		}
 		rb.Result = langs
 		rb.Reset = true
-		rb.PrevPageURL = "/languages?c=" + c.String()
+		rb.PrevPageURL = "/languages?c=" + crsr.String()
 		s.W.WriteHeader(http.StatusCreated)
 	case "DELETE":
 		var err error
@@ -76,19 +76,19 @@ func Handler(s *session.Session) {
 		s.W.WriteHeader(http.StatusNoContent)
 	default:
 		// Handles "GET" requests
-		c, err := datastore.DecodeCursor(s.R.FormValue("c"))
+		crsr, err := datastore.DecodeCursor(s.R.FormValue("c"))
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		langs, c, err := language.GetMulti(s, c, nil)
+		langs, crsr, err := language.GetMulti(s, crsr, nil)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		rb.PrevPageURL = "/languages?c=" + c.String()
+		rb.PrevPageURL = "/languages?c=" + crsr.String()
 		rb.Result = langs
 	}
 	api.WriteResponse(s, rb)

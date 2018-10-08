@@ -2,8 +2,6 @@ package user
 
 import (
 	"github.com/MerinEREN/iiPackages/datastore/phone"
-	"github.com/MerinEREN/iiPackages/datastore/photo"
-	"github.com/MerinEREN/iiPackages/datastore/tag"
 	"google.golang.org/appengine/datastore"
 	"time"
 )
@@ -18,15 +16,14 @@ a comment can often be perfunctory.
 type User struct {
 	ID                string           `datastore:"-"`
 	Email             string           `json:"email"`
-	Name              Name             `datastore:",noindex" json:"name"`
-	Photo             photo.Photo      `datastore:"-" json:"photo"`
+	Name              Name             `json:"name"`
+	Link              string           `json:"link"`
 	Gender            string           `json:"gender"`
 	Status            string           `json:"status"`
 	Type              string           `json:"type"`
 	Roles             []string         `json:"roles"`
-	Tags              tag.Tags         `datastore:"-" json:"tags"`
 	BirthDate         time.Time        `datastore:",noindex" json:"birthDate"`
-	Registered        time.Time        `datastore:",noindex" json:"registered"`
+	Created           time.Time        `json:"created"`
 	LastModified      time.Time        `datastore:",noindex" json:"lastModified"`
 	IsActive          bool             `json:"isactive"`
 	PurchasedServices []*datastore.Key `datastore:"-" json:"purchasedSrvices"`

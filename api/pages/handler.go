@@ -65,9 +65,9 @@ func Handler(s *session.Session) {
 			return
 		} */
 		// Reset the cursor and get the entities from the begining.
-		var c datastore.Cursor
+		var crsr datastore.Cursor
 		var ps page.Pages
-		ps, c, err = page.PutAndGetMulti(s, c, p)
+		ps, crsr, err = page.PutAndGetMulti(s, crsr, p)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -75,7 +75,7 @@ func Handler(s *session.Session) {
 		}
 		rb.Result = ps
 		rb.Reset = true
-		rb.PrevPageURL = "/pages?d=prev&" + "c=" + c.String()
+		rb.PrevPageURL = "/pages?c=" + crsr.String()
 		s.W.WriteHeader(http.StatusCreated)
 	case "DELETE":
 		IDsAsString := s.R.FormValue("IDs")
@@ -94,19 +94,19 @@ func Handler(s *session.Session) {
 		s.W.WriteHeader(http.StatusNoContent)
 	default:
 		// Handles "GET" requests
-		c, err := datastore.DecodeCursor(s.R.FormValue("c"))
+		crsr, err := datastore.DecodeCursor(s.R.FormValue("c"))
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		ps, c, err := page.GetMulti(s, c, nil, nil)
+		ps, crsr, err := page.GetMulti(s, crsr, nil, nil)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		rb.PrevPageURL = "/pages?c=" + c.String()
+		rb.PrevPageURL = "/pages?c=" + crsr.String()
 		rb.Result = ps
 		// LastModifed AND Created ALSO SENDING WITH THEIR O VALUES, FIND A WAY TO
 		// REMOVE THEM.

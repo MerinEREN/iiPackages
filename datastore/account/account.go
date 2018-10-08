@@ -14,23 +14,24 @@ var (
 	ErrPutAccount = errors.New("error while putting account into the datastore")
 )
 
-// Get returns entity via key or key name and an error.
-func Get(s *session.Session, k interface{}) (*Account, error) {
+// Get returns the entity via key or key name and an error.
+func Get(s *session.Session, i interface{}) (*Account, error) {
 	acc := new(Account)
 	var err error
-	switch v := k.(type) {
+	switch v := i.(type) {
 	case string:
 		q := datastore.NewQuery("Account").
 			Filter("KeyName =", v)
 		it := q.Run(s.Ctx)
-		_, err = it.Next(acc)
+		k := new(datastore.Key)
+		k, err = it.Next(acc)
 		if err == nil {
-			acc.ID = v
+			acc.ID = k.Encode()
 		}
 	case *datastore.Key:
 		err = datastore.Get(s.Ctx, v, acc)
 		if err == nil {
-			acc.ID = v.StringID()
+			acc.ID = v.Encode()
 		}
 	}
 	return acc, err

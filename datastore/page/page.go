@@ -24,8 +24,8 @@ var (
 )
 
 /*
-GetMulti returns corresponding pages if page keys provided
-Otherwise returns limited entitity from the given cursor.
+GetMulti returns corresponding entities if keys provided
+Otherwise returns limited entitities from the given cursor.
 If limit is nil default limit will be used.
 */
 func GetMulti(s *session.Session, c datastore.Cursor, limit, kx interface{}) (
@@ -54,7 +54,7 @@ func GetMulti(s *session.Session, c datastore.Cursor, limit, kx interface{}) (
 		l := limit.(int)
 		q = q.Limit(l)
 	} else {
-		q = q.Limit(10)
+		q = q.Limit(20)
 	}
 	for it := q.Run(s.Ctx); ; {
 		p := new(Page)
@@ -73,12 +73,7 @@ func GetMulti(s *session.Session, c datastore.Cursor, limit, kx interface{}) (
 }
 
 /*
-Put "Inside a package, any comment immediately preceding a top-level declaration serves as a
-doc comment for that declaration. Every exported (capitalized) name in a program should
-have a doc comment.
-Doc comments work best as complete sentences, which allow a wide variety of automated
-presentations. The first sentence should be a one-sentence summary that starts with the
-name being declared."
+Put adds or modifies an entity to the kind according to request method.
 */
 func Put(s *session.Session, p *Page) (*Page, error) {
 	k := new(datastore.Key)

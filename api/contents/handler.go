@@ -88,7 +88,7 @@ func Handler(s *session.Session) {
 			}
 		}
 		rb.Result = cs
-		rb.PrevPageURL = "/pages?d=prev&" + "c=" + crsr.String()
+		rb.PrevPageURL = "/contents?c=" + crsr.String()
 		s.W.WriteHeader(http.StatusCreated)
 		api.WriteResponse(s, rb)
 	case "PUT":

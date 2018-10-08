@@ -132,7 +132,7 @@ func Handler(s *session.Session) {
 					return
 				}
 				for _, v := range uKeys {
-					userTagKeys, err = userTag.Get(s.Ctx, v)
+					userTagKeys, err = userTag.GetKeysProjected(s.Ctx, v)
 					if err == datastore.Done {
 						if len(userTagKeys) == 0 {
 							log.Printf("Path: %s, Request: getting user's tags, Error: %v\n", s.R.URL.Path, err)
@@ -173,7 +173,7 @@ func Handler(s *session.Session) {
 					return
 				}
 			} else {
-				userTagKeys, err = userTag.Get(s.Ctx, uKey)
+				userTagKeys, err = userTag.GetKeysProjected(s.Ctx, uKey)
 				if err == datastore.Done {
 					if len(userTagKeys) == 0 {
 						log.Printf("Path: %s, Request: getting user's tags, Error: %v\n", s.R.URL.Path, err)

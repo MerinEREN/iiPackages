@@ -13,9 +13,9 @@ import (
 	"google.golang.org/appengine/datastore"
 )
 
-// Get returns the user keys as a slice if the tag key is provided
+// GetKeysProjected returns the user keys as a slice if the tag key is provided
 // or returns the tag keys as a slice if user key is provided and also an error.
-func Get(ctx context.Context, key *datastore.Key) ([]*datastore.Key, error) {
+func GetKeysProjected(ctx context.Context, key *datastore.Key) ([]*datastore.Key, error) {
 	var kx []*datastore.Key
 	q := datastore.NewQuery("UserTag")
 	kind := key.Kind()
@@ -42,6 +42,17 @@ func Get(ctx context.Context, key *datastore.Key) ([]*datastore.Key, error) {
 			kx = append(kx, ut.TagKey)
 		}
 	}
+}
+
+// PutMulti puts entities with corresponding entity keys and returns an error.
+func PutMulti(ctx context.Context, kx []*datastore.Key, utx UserTags) error {
+	_, err := datastore.PutMulti(ctx, kx, utx)
+	return err
+}
+
+// Delete deletes an entity by provided key and returns an error.
+func Delete(ctx context.Context, k *datastore.Key) error {
+	return datastore.Delete(ctx, k)
 }
 
 // GetCount returns the count of the entities that has provided key and an error.

@@ -2,7 +2,6 @@ package account
 
 import (
 	"github.com/MerinEREN/iiPackages/datastore/address"
-	"github.com/MerinEREN/iiPackages/datastore/photo"
 	"github.com/MerinEREN/iiPackages/datastore/rank"
 	"github.com/MerinEREN/iiPackages/datastore/score"
 	"google.golang.org/appengine/datastore"
@@ -18,7 +17,7 @@ type Account struct {
 	ID           string            `datastore:"-"`
 	Name         string            `json:"name"`
 	Type         string            `json:"type"`
-	Photo        photo.Photo       `datastore:"-" json:"photo"`
+	Link         string            `datastore:"-" json:"link"`
 	Addresses    address.Addresses `datastore:"-" json:"addresses"`
 	Status       string            `json:"status"`
 	About        string            `json:"about"`

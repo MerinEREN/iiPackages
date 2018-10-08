@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// Tag is an account profession.
+// Tag is an user profession.
 // And the "Name" is a encoded content key for multilang purpose.
 type Tag struct {
 	ID      string    `datastore:"-"`

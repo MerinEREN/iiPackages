@@ -21,30 +21,37 @@ var (
 	ErrFindTag = errors.New("Error while getting tag")
 )
 
-// GetMulti returns limited entitity from the given cursor.
-// If limit is nil default limit will be used.
-func GetMulti(s *session.Session, c datastore.Cursor, limit interface{}) (Tags, datastore.Cursor, error) {
+/*
+GetMulti returns corresponding entities if keys provided.
+Otherwise returns limited entitities from the given cursor.
+If limit is nil default limit will be used.
+*/
+func GetMulti(s *session.Session, kx interface{}) (Tags, error) {
 	ts := make(Tags)
-	q := datastore.NewQuery("Tag").Project("Name").Order("-Created")
-	if c.String() != "" {
-		q = q.Start(c)
+	if kx, ok := kx.([]*datastore.Key); ok {
+		tx := make([]*Tag, len(kx))
+		// RETURNED ENTITY LIMIT COULD BE A PROBLEM HERE !!!!!!!!!!!!!!!!!!!!!!!!!!
+		err := datastore.GetMulti(s.Ctx, kx, tx)
+		if err != nil {
+			return nil, err
+		}
+		for i, v := range kx {
+			ts[v.Encode()] = tx[i]
+		}
+		return ts, err
 	}
-	if limit != nil {
-		l := limit.(int)
-		q = q.Limit(l)
-	} else {
-		q = q.Limit(20)
-	}
+	q := datastore.NewQuery("Tag").
+		Project("Name").
+		Order("-Created")
 	for it := q.Run(s.Ctx); ; {
 		t := new(Tag)
 		k, err := it.Next(t)
 		if err == datastore.Done {
-			c, err = it.Cursor()
-			return ts, c, err
+			return ts, err
 		}
 		if err != nil {
 			err = ErrFindTag
-			return nil, c, err
+			return nil, err
 		}
 		t.ID = k.Encode()
 		ts[t.ID] = t
@@ -72,8 +79,7 @@ func Put(s *session.Session, t *Tag) (*Tag, error) {
 
 // PutAndGetMulti is a transaction which puts the posted item first
 // and then gets entities by the given limit.
-func PutAndGetMulti(s *session.Session, c datastore.Cursor, t *Tag) (Tags,
-	datastore.Cursor, error) {
+func PutAndGetMulti(s *session.Session, t *Tag) (Tags, error) {
 	ts := make(Tags)
 	tNew := new(Tag)
 	err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
@@ -81,11 +87,11 @@ func PutAndGetMulti(s *session.Session, c datastore.Cursor, t *Tag) (Tags,
 		if err1 != nil {
 			return
 		}
-		ts, c, err1 = GetMulti(s, c, 19)
+		ts, err1 = GetMulti(s, nil)
 		return
 	}, nil)
 	ts[tNew.ID] = tNew
-	return ts, c, err
+	return ts, err
 }
 
 // Delete removes the entity by the provided encoded entity key and returns an error.

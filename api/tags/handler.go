@@ -19,18 +19,16 @@ import (
 
 // Handler "Exported functions should have a comment"
 func Handler(s *session.Session) {
-	rb := new(api.ResponseBody)
-	var err error
 	switch s.R.Method {
 	case "POST":
+		rb := new(api.ResponseBody)
 		name := s.R.FormValue("name")
 		t := &tag.Tag{
 			Name: name,
 		}
 		// Reset the cursor and get the entities from the begining.
-		var c datastore.Cursor
-		var ts tag.Tags
-		ts, c, err = tag.PutAndGetMulti(s, c, t)
+		var crsr datastore.Cursor
+		ts, err := tag.PutAndGetMulti(s, t)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -38,8 +36,9 @@ func Handler(s *session.Session) {
 		}
 		rb.Result = ts
 		rb.Reset = true
-		rb.PrevPageURL = "/tags?c=" + c.String()
+		rb.PrevPageURL = "/tags?c=" + crsr.String()
 		s.W.WriteHeader(http.StatusCreated)
+		api.WriteResponse(s, rb)
 	case "DELETE":
 		ID := s.R.FormValue("ID")
 		if ID == "" {
@@ -47,7 +46,7 @@ func Handler(s *session.Session) {
 			http.Error(s.W, "No tag ID to delete", http.StatusBadRequest)
 			return
 		}
-		err = tag.Delete(s, ID)
+		err := tag.Delete(s, ID)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -56,22 +55,14 @@ func Handler(s *session.Session) {
 		s.W.WriteHeader(http.StatusNoContent)
 	default:
 		// Handles "GET" requests
-		var ts tag.Tags
-		var c datastore.Cursor
-		c, err = datastore.DecodeCursor(s.R.FormValue("c"))
-		if err != nil {
+		rb := new(api.ResponseBody)
+		ts, err := tag.GetMulti(s, nil)
+		if err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		ts, c, err = tag.GetMulti(s, c, nil)
-		if err != nil && err != datastore.Done {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		rb.PrevPageURL = "/tags?c=" + c.String()
 		rb.Result = ts
+		api.WriteResponse(s, rb)
 	}
-	api.WriteResponse(s, rb)
 }

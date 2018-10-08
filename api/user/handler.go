@@ -28,10 +28,11 @@ func Handler(s *session.Session) {
 		uKey, err = datastore.DecodeKey(ID)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!
+			http.Error(s.W, err.Error(), http.StatusBadRequest)
 			return
 		}
-		err = datastore.Get(s.Ctx, uKey, u)
+		u, err = user.Get(s.Ctx, uKey)
 		if err == datastore.ErrNoSuchEntity {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!
@@ -73,7 +74,7 @@ func Handler(s *session.Session) {
 						http.StatusInternalServerError)
 					return
 				}
-				u, err = user.Get(s, uKey)
+				u, err = user.Get(s.Ctx, uKey)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n",
 						s.R.URL.Path, err)

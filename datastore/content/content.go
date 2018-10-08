@@ -16,9 +16,9 @@ import (
 )
 
 /*
-GetMulti returns corresponding contents with values of all languages
-if content keys provided.
-Otherwise returns limited entitity from the given cursor.
+GetMulti returns corresponding entities with values of all languages
+if keys provided.
+Otherwise returns limited entitities from the given cursor.
 If limit is nil default limit will be used.
 */
 func GetMulti(s *session.Session, crsr datastore.Cursor, limit, kx interface{}) (
