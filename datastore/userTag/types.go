@@ -6,8 +6,7 @@ import (
 
 // UserTag datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 type UserTag struct {
-	UserKey *datastore.Key
-	TagKey  *datastore.Key
+	TagKey *datastore.Key
 }
 
 // UserTags is a []*UserTag

@@ -1,10 +1,4 @@
-/*
-Package page "Every package should have a package comment, a block comment preceding the package clause.
-For multi-file packages, the package comment only needs to be present in one file, and any
-one will do. The package comment should introduce the package and provide information
-relevant to the package as a whole. It will appear first on the godoc page and should set
-up the detailed documentation that follows."
-*/
+// Package page gets, deletes and modifies a page.
 package page
 
 import (
@@ -18,7 +12,7 @@ import (
 	"strings"
 )
 
-// Handler "Exported functions should have a comment"
+// Handler gets, deletes and modifies the page by given page ID as encoded key.
 func Handler(s *session.Session) {
 	ID := strings.Split(s.R.URL.Path, "/")[2]
 	switch s.R.Method {
@@ -52,8 +46,7 @@ func Handler(s *session.Session) {
 		ps := make(page.Pages)
 		ps[p.ID] = p
 		rb.Result = ps
-		// s.W.WriteHeader(http.StatusOK)
-		api.WriteResponse(s, rb)
+		api.WriteResponseJSON(s, rb)
 	case "DELETE":
 		err := page.Delete(s, ID)
 		if err != nil {
@@ -73,6 +66,6 @@ func Handler(s *session.Session) {
 		}
 		rb := new(api.ResponseBody)
 		rb.Result = ps
-		api.WriteResponse(s, rb)
+		api.WriteResponseJSON(s, rb)
 	}
 }

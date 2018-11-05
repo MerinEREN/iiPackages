@@ -1,11 +1,4 @@
-/*
-Package pages "Every package should have a package comment, a block comment preceding
-the package clause.
-For multi-file packages, the package comment only needs to be present in one file, and any
-one will do. The package comment should introduce the package and provide information
-relevant to the package as a whole. It will appear first on the godoc page and should set
-up the detailed documentation that follows."
-*/
+// Package pages posts a page, deletes and gets pages.
 package pages
 
 import (
@@ -19,9 +12,10 @@ import (
 	"strings"
 )
 
-// Handler "Exported functions should have a comment"
+// Handler posts a page and returns limited pages from the begining of the kind.
+// Also, deletes pages by given ids as encoded keys
+// and gets pages from the begining of the given cursor.
 func Handler(s *session.Session) {
-	rb := new(api.ResponseBody)
 	switch s.R.Method {
 	case "POST":
 		title := s.R.FormValue("title")
@@ -73,10 +67,12 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		rb := new(api.ResponseBody)
 		rb.Result = ps
-		rb.Reset = true
 		rb.PrevPageURL = "/pages?c=" + crsr.String()
+		s.W.Header().Set("Content-Type", "application/json")
 		s.W.WriteHeader(http.StatusCreated)
+		api.WriteResponse(s, rb)
 	case "DELETE":
 		IDsAsString := s.R.FormValue("IDs")
 		ekx := strings.Split(IDsAsString, ",")
@@ -106,10 +102,11 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		rb := new(api.ResponseBody)
 		rb.PrevPageURL = "/pages?c=" + crsr.String()
 		rb.Result = ps
 		// LastModifed AND Created ALSO SENDING WITH THEIR O VALUES, FIND A WAY TO
 		// REMOVE THEM.
+		api.WriteResponseJSON(s, rb)
 	}
-	api.WriteResponse(s, rb)
 }

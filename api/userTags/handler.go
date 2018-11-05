@@ -9,11 +9,13 @@ up the detailed documentation that follows."
 package userTags
 
 import (
+	"encoding/json"
 	"github.com/MerinEREN/iiPackages/api"
 	"github.com/MerinEREN/iiPackages/datastore/tag"
 	"github.com/MerinEREN/iiPackages/datastore/userTag"
 	"github.com/MerinEREN/iiPackages/session"
 	"google.golang.org/appengine/datastore"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
@@ -31,15 +33,28 @@ func Handler(s *session.Session) {
 	uKey, err := datastore.DecodeKey(uID)
 	if err != nil {
 		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-		http.Error(s.W, err.Error(), http.StatusInternalServerError)
+		// Or the status code may be "StatusBadRequest"
+		http.Error(s.W, err.Error(), http.StatusBadRequest)
 		return
 	}
 	switch s.R.Method {
 	case "POST":
+		var bs []byte
+		bs, err = ioutil.ReadAll(s.R.Body)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		var tIDx []string
+		err = json.Unmarshal(bs, &tIDx)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		var kx []*datastore.Key
 		var utx userTag.UserTags
-		tIDx := s.R.PostFormValue("tIDs")
 		for _, v := range tIDx {
 			k := datastore.NewKey(s.Ctx, "UserTag", v, 0, uKey)
 			kx = append(kx, k)
@@ -50,8 +65,7 @@ func Handler(s *session.Session) {
 				return
 			}
 			ut := &userTag.UserTag{
-				UserKey: uKey,
-				TagKey:  tKey,
+				TagKey: tKey,
 			}
 			utx = append(utx, ut)
 		}
@@ -61,7 +75,7 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		s.W.WriteHeader(http.StatusCreated)
+		s.W.WriteHeader(http.StatusNoContent)
 	case "DELETE":
 		tID := strings.Split(s.R.URL.Path, "/")[3]
 		if tID == "" {
@@ -79,9 +93,8 @@ func Handler(s *session.Session) {
 		s.W.WriteHeader(http.StatusNoContent)
 	default:
 		// Handles "GET" requests
-		rb := new(api.ResponseBody)
 		ts := make(tag.Tags)
-		kx, err := userTag.GetKeysProjected(s.Ctx, uKey)
+		kx, err := userTag.GetKeysUserOrTag(s.Ctx, uKey)
 		if err == datastore.Done {
 			if kx != nil {
 				ts, err = tag.GetMulti(s, kx)
@@ -92,13 +105,17 @@ func Handler(s *session.Session) {
 						http.StatusInternalServerError)
 					return
 				}
+			} else {
+				s.W.WriteHeader(http.StatusNoContent)
+				return
 			}
 		} else if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		rb := new(api.ResponseBody)
 		rb.Result = ts
-		api.WriteResponse(s, rb)
+		api.WriteResponseJSON(s, rb)
 	}
 }

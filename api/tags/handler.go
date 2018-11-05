@@ -1,11 +1,4 @@
-/*
-Package tags "Every package should have a package comment, a block comment preceding
-the package clause.
-For multi-file packages, the package comment only needs to be present in one file, and any
-one will do. The package comment should introduce the package and provide information
-relevant to the package as a whole. It will appear first on the godoc page and should set
-up the detailed documentation that follows."
-*/
+// Package tags posts and deletes a tag, also gets all tags.
 package tags
 
 import (
@@ -17,11 +10,12 @@ import (
 	"net/http"
 )
 
-// Handler "Exported functions should have a comment"
+// Handler posts a tag and returns all the tags from the begining of the kind.
+// Also, deletes a tag by given id as encoded key
+// and gets all the tags from the begining of the kind.
 func Handler(s *session.Session) {
 	switch s.R.Method {
 	case "POST":
-		rb := new(api.ResponseBody)
 		name := s.R.FormValue("name")
 		t := &tag.Tag{
 			Name: name,
@@ -34,9 +28,10 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		rb := new(api.ResponseBody)
 		rb.Result = ts
-		rb.Reset = true
 		rb.PrevPageURL = "/tags?c=" + crsr.String()
+		s.W.Header().Set("Content-Type", "application/json")
 		s.W.WriteHeader(http.StatusCreated)
 		api.WriteResponse(s, rb)
 	case "DELETE":
@@ -55,14 +50,14 @@ func Handler(s *session.Session) {
 		s.W.WriteHeader(http.StatusNoContent)
 	default:
 		// Handles "GET" requests
-		rb := new(api.ResponseBody)
 		ts, err := tag.GetMulti(s, nil)
 		if err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		rb := new(api.ResponseBody)
 		rb.Result = ts
-		api.WriteResponse(s, rb)
+		api.WriteResponseJSON(s, rb)
 	}
 }

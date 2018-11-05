@@ -5,6 +5,8 @@ import (
 )
 
 // Language "datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!"
+// "ID" is language code and
+// "Name" is a content id to fulfill multilang requirements.
 type Language struct {
 	ID           string    `datastore:"-"`
 	Name         string    `json:"name"`

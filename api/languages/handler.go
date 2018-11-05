@@ -1,11 +1,4 @@
-/*
-Package languages "Every package should have a package comment, a block comment preceding
-the package clause.
-For multi-file packages, the package comment only needs to be present in one file, and any
-one will do. The package comment should introduce the package and provide information
-relevant to the package as a whole. It will appear first on the godoc page and should set
-up the detailed documentation that follows."
-*/
+// Package languages posts a page, deletes and gets pages.
 package languages
 
 import (
@@ -19,9 +12,10 @@ import (
 	"strings"
 )
 
-// Handler "Exported functions should have a comment"
+// Handler posts a language and returns limited languages from the begining of the kind.
+// Also, deletes languages by given ids as encoded keys
+// and gets languages from the begining of the given cursor..
 func Handler(s *session.Session) {
-	rb := new(api.ResponseBody)
 	switch s.R.Method {
 	case "POST":
 		langCode := s.R.FormValue("ID")
@@ -51,10 +45,12 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		rb := new(api.ResponseBody)
 		rb.Result = langs
-		rb.Reset = true
 		rb.PrevPageURL = "/languages?c=" + crsr.String()
+		s.W.Header().Set("Content-Type", "application/json")
 		s.W.WriteHeader(http.StatusCreated)
+		api.WriteResponse(s, rb)
 	case "DELETE":
 		var err error
 		langCodesAsString := s.R.FormValue("IDs")
@@ -88,8 +84,9 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		rb := new(api.ResponseBody)
 		rb.PrevPageURL = "/languages?c=" + crsr.String()
 		rb.Result = langs
+		api.WriteResponseJSON(s, rb)
 	}
-	api.WriteResponse(s, rb)
 }

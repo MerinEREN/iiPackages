@@ -132,7 +132,7 @@ func Handler(s *session.Session) {
 					return
 				}
 				for _, v := range uKeys {
-					userTagKeys, err = userTag.GetKeysProjected(s.Ctx, v)
+					userTagKeys, err = userTag.GetKeysUserOrTag(s.Ctx, v)
 					if err == datastore.Done {
 						if len(userTagKeys) == 0 {
 							log.Printf("Path: %s, Request: getting user's tags, Error: %v\n", s.R.URL.Path, err)
@@ -173,7 +173,7 @@ func Handler(s *session.Session) {
 					return
 				}
 			} else {
-				userTagKeys, err = userTag.GetKeysProjected(s.Ctx, uKey)
+				userTagKeys, err = userTag.GetKeysUserOrTag(s.Ctx, uKey)
 				if err == datastore.Done {
 					if len(userTagKeys) == 0 {
 						log.Printf("Path: %s, Request: getting user's tags, Error: %v\n", s.R.URL.Path, err)
@@ -248,5 +248,5 @@ func Handler(s *session.Session) {
 		}
 	}
 	rb.Result = os
-	api.WriteResponse(s, rb)
+	api.WriteResponseJSON(s, rb)
 }

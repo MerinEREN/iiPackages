@@ -1,10 +1,4 @@
-/*
-Every package should have a package comment, a block comment preceding the package clause.
-For multi-file packages, the package comment only needs to be present in one file, and any
-one will do. The package comment should introduce the package and provide information
-relevant to the package as a whole. It will appear first on the godoc page and should set
-up the detailed documentation that follows.
-*/
+// Package signout handles signout request.
 package signout
 
 import (
@@ -15,6 +9,7 @@ import (
 	"net/http"
 )
 
+// Handler returns user's logout url as a json encoded data.
 func Handler(s *session.Session) {
 	URL, err := user.LogoutURL(s.Ctx, "/")
 	if err != nil {
@@ -24,5 +19,5 @@ func Handler(s *session.Session) {
 	}
 	rb := new(api.ResponseBody)
 	rb.Result = URL
-	api.WriteResponse(s, rb)
+	api.WriteResponseJSON(s, rb)
 }

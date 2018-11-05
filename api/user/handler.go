@@ -1,6 +1,4 @@
-/*
-Package user returns non admin user when admin user selects from user settings.
-*/
+// Package user returns an user.
 package user
 
 import (
@@ -157,30 +155,6 @@ func Handler(s *session.Session) {
 		}
 	}
 	rb := new(api.ResponseBody)
-	/* uKeys, err := user.GetUsersKeysViaParent(s.Ctx, uKey.Parent())
-	if err != datastore.Done {
-		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-		// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!
-		http.Error(s.W, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	tagKeys, err := userTags.Get(s.Ctx, uKeys)
-	if err != nil && err != datastore.Done {
-		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-		// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!
-		http.Error(s.W, err.Error(),
-			http.StatusInternalServerError)
-		return
-	}
-	tags, err := tags.GetMulti(s.Ctx, tagKeys)
-	if err != nil && err != datastore.Done {
-		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-		// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!
-		http.Error(s.W, err.Error(),
-			http.StatusInternalServerError)
-		return
-	}
-	u.Tags = tags*/
 	rb.Result = u
-	api.WriteResponse(s, rb)
+	api.WriteResponseJSON(s, rb)
 }

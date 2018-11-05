@@ -147,7 +147,7 @@ func GetProjected(ctx context.Context, pk *datastore.Key, crsr datastore.Cursor,
 	q := datastore.NewQuery("User").
 		Ancestor(pk).
 		Order("-Created").
-		Project("Name.First", "Name.Last", "Email", "Link", "Roles")
+		Project("Name.First", "Name.Last", "Email", "Link")
 	if crsr.String() != "" {
 		q = q.Start(crsr)
 	}

@@ -1,5 +1,5 @@
 /*
-Package roles returns logged user's roles.
+Package roles handles role requests.
 */
 package roles
 
@@ -12,7 +12,7 @@ import (
 	"net/http"
 )
 
-// Handler bla bla bla...
+// Handler handles "POST" and "DELETE" requests.
 func Handler(s *session.Session) {
 	u, uKey, err := user.GetViaEmail(s)
 	if err != nil {

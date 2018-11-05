@@ -13,32 +13,41 @@ import (
 	"google.golang.org/appengine/datastore"
 )
 
-// GetKeysProjected returns the user keys as a slice if the tag key is provided
+// GetKeysUserOrTag returns the user keys as a slice if the tag key is provided
 // or returns the tag keys as a slice if user key is provided and also an error.
-func GetKeysProjected(ctx context.Context, key *datastore.Key) ([]*datastore.Key, error) {
+func GetKeysUserOrTag(ctx context.Context, key *datastore.Key) ([]*datastore.Key, error) {
 	var kx []*datastore.Key
 	q := datastore.NewQuery("UserTag")
 	kind := key.Kind()
 	switch kind {
 	case "Tag":
-		q = q.Filter("TagKey =", key).
-			Project("UserKey")
-	case "User":
-		q = q.Filter("UserKey =", key).
+		q = q.
+			Filter("TagKey =", key).
+			KeysOnly()
+		for it := q.Run(ctx); ; {
+			k, err := it.Next(nil)
+			if err == datastore.Done {
+				return kx, err
+			}
+			if err != nil {
+				return nil, err
+			}
+			kx = append(kx, k.Parent())
+		}
+	default:
+		// For "User" kind
+		q = q.
+			Ancestor(key).
 			Project("TagKey")
-	}
-	for it := q.Run(ctx); ; {
-		ut := new(UserTag)
-		_, err := it.Next(ut)
-		if err == datastore.Done {
-			return kx, err
-		}
-		if err != nil {
-			return nil, err
-		}
-		if key.Kind() == "Tag" {
-			kx = append(kx, ut.UserKey)
-		} else {
+		for it := q.Run(ctx); ; {
+			ut := new(UserTag)
+			_, err := it.Next(ut)
+			if err == datastore.Done {
+				return kx, err
+			}
+			if err != nil {
+				return nil, err
+			}
 			kx = append(kx, ut.TagKey)
 		}
 	}
@@ -55,7 +64,7 @@ func Delete(ctx context.Context, k *datastore.Key) error {
 	return datastore.Delete(ctx, k)
 }
 
-// GetCount returns the count of the entities that has provided key and an error.
+// GetCount returns the count of the entities that has the provided key and an error.
 /* func GetCount(s *session.Session, k *datastore.Key) (c int, err error) {
 	q := datastore.NewQuery("UserTag")
 	if k.Kind() == "User" {

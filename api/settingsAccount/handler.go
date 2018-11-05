@@ -1,6 +1,4 @@
-/*
-Package settingsAccount returns account struct.
-*/
+// Package settingsAccount returns account struct.
 package settingsAccount
 
 import (
@@ -15,14 +13,14 @@ import (
 // Handler returns account struct via encoded account key.
 func Handler(s *session.Session) {
 	acc := new(account.Account)
-	aKey, err := datastore.DecodeKey(s.R.FormValue("aID"))
+	k, err := datastore.DecodeKey(s.R.FormValue("aID"))
 	if err != nil {
 		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 		// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!!!!!!!!
-		http.Error(s.W, err.Error(), http.StatusInternalServerError)
+		http.Error(s.W, err.Error(), http.StatusBadRequest)
 		return
 	}
-	err = datastore.Get(s.Ctx, aKey, acc)
+	err = datastore.Get(s.Ctx, k, acc)
 	if err != nil {
 		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 		// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!!!!!!!!
@@ -31,5 +29,5 @@ func Handler(s *session.Session) {
 	}
 	rb := new(api.ResponseBody)
 	rb.Result = acc
-	api.WriteResponse(s, rb)
+	api.WriteResponseJSON(s, rb)
 }

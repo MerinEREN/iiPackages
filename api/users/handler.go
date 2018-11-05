@@ -1,6 +1,4 @@
-/*
-Package users returns users with limited properties to list in User Settings page.
-*/
+// Package users returns only non adimin users of an account and saves user and user tags.
 package users
 
 import (
@@ -15,9 +13,10 @@ import (
 	"net/http"
 )
 
-// Handler returns users via account id.
-// Also puts a user into the User kind and user tags into the UserTag kind
-// if the request method is POST.
+// Handler returns the only non adimin users of an account via account id
+// with limited properties to list in User Settings page.
+// Also puts a user into the User kind with account id as parent key
+// and user tags into the UserTag kind if the request method is POST.
 func Handler(s *session.Session) {
 	accID := s.R.FormValue("accID")
 	// CHECK THIS KONTROL BELOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -32,8 +31,10 @@ func Handler(s *session.Session) {
 		http.Error(s.W, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	rb := new(api.ResponseBody)
+	uNew := new(user.User)
+	var crsr datastore.Cursor
 	var us user.Users
+	var count interface{}
 	switch s.R.Method {
 	case "POST":
 		// GET ROLES TOO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -47,46 +48,9 @@ func Handler(s *session.Session) {
 			return
 		}
 		tagIDs := s.R.FormValue("tagIDs")
-		/* bs, err := ioutil.ReadAll(s.R.Body)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		p := new(page.Page)
-		err = json.Unmarshal(bs, p)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		} */
-		// Using 'decoder' is an alternative and can be used if response body has
-		// more than one json object.
-		// Otherwise don't use it, because it has performance disadvantages
-		// compared to first solution.
-		/*decoder := json.NewDecoder(r.Body)
-		err := decoder.Decode(p)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		} */
+		uk := new(datastore.Key)
 		utx := make(userTag.UserTags, len(tagIDs))
 		utkx := make([]*datastore.Key, len(tagIDs))
-		for _, v := range tagIDs {
-			ut := new(userTag.UserTag)
-			// tk, err := datastore.DecodeKey(v)
-			tk, err := datastore.DecodeKey(string(v))
-			if err != nil {
-				return
-			}
-			ut.TagKey = tk
-			utx = append(utx, ut)
-			utk := datastore.NewIncompleteKey(s.Ctx, "UserTag", nil)
-			utkx = append(utkx, utk)
-		}
-		uNew := new(user.User)
-		uk := new(datastore.Key)
 		opts := new(datastore.TransactionOptions)
 		opts.XG = true
 		err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (
@@ -95,12 +59,23 @@ func Handler(s *session.Session) {
 			if err1 != nil {
 				return
 			}
-			for i := range utkx {
-				utx[i].UserKey = uk
+			for _, v := range tagIDs {
+				ut := new(userTag.UserTag)
+				// tk, err := datastore.DecodeKey(v)
+				tk, err := datastore.DecodeKey(string(v))
+				if err != nil {
+					return
+				}
+				ut.TagKey = tk
+				utx = append(utx, ut)
+				utk := datastore.NewKey(s.Ctx, "UserTag", string(v), 0, uk)
+				utkx = append(utkx, utk)
 			}
-			_, err1 = datastore.PutMulti(ctx, utkx, utx)
-			if err1 != nil {
-				return
+			if len(utkx) > 0 {
+				_, err1 = datastore.PutMulti(ctx, utkx, utx)
+				if err1 != nil {
+					return
+				}
 			}
 			return
 		}, opts)
@@ -109,49 +84,60 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		// Reset the cursor and get the entities from the begining.
-		var crsr datastore.Cursor
-		us, crsr, err = user.GetProjected(s.Ctx, accKey, crsr, 9)
-		if err != nil && err != datastore.Done {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		us[uNew.ID] = uNew
-		rb.Reset = true
-		rb.PrevPageURL = "/users?c=" + crsr.String() + "&accID=" + accID
-		s.W.WriteHeader(http.StatusCreated)
+		// Default limit +1 because of the admin user removal.
+		// Not 11 but the default value 10
+		// beacause of the newUser addition to the response data.
+		count = nil
 	default:
-		// Hendles "GET" requests
-		// And returns only non admin users of the account
-		crsr, err := datastore.DecodeCursor(s.R.FormValue("c"))
+		// Handles "GET" requests
+		crsr, err = datastore.DecodeCursor(s.R.FormValue("c"))
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		us, crsr, err = user.GetProjected(s.Ctx, accKey, crsr, nil)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
+		// if first pagination request.
+		if crsr.String() == "" {
+			// Default limit +1 because of the admin user removal.
+			count = 11
+		} else {
+			count = nil
 		}
-		// Remove admin user from the users map
-		brk := false
-		for i, v := range us {
-			if brk {
+	}
+	// Get the entities from the begining by reseted cursor if the method is Post
+	// Or get from the given cursor.
+	us, crsr, err = user.GetProjected(s.Ctx, accKey, crsr, count)
+	if err != nil && err != datastore.Done {
+		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+		http.Error(s.W, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// Remove admin user from the users map
+	brk := false
+	for i, v := range us {
+		if brk {
+			break
+		}
+		for _, v2 := range v.Roles {
+			if v2 == "admin" {
+				delete(us, i)
+				brk = true
 				break
 			}
-			for _, v2 := range v.Roles {
-				if v2 == "admin" {
-					delete(us, i)
-					brk = true
-					break
-				}
-			}
 		}
-		rb.PrevPageURL = "/users?c=" + crsr.String() + "&accID=" + accID
 	}
+	if s.R.Method == "POST" {
+		us[uNew.ID] = uNew
+	}
+	// Returns only non admin users of the account.
+	rb := new(api.ResponseBody)
 	rb.Result = us
-	api.WriteResponse(s, rb)
+	rb.PrevPageURL = "/users?c=" + crsr.String() + "&accID=" + accID
+	if s.R.Method == "POST" {
+		s.W.Header().Set("Content-Type", "application/json")
+		s.W.WriteHeader(http.StatusCreated)
+		api.WriteResponse(s, rb)
+	} else {
+		api.WriteResponseJSON(s, rb)
+	}
 }

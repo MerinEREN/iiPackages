@@ -24,7 +24,7 @@ func Handler(s *session.Session) {
 		k, err = datastore.DecodeKey(ID)
 		if err != nil {
 			log.Printf("Page:%s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			http.Error(s.W, err.Error(), http.StatusBadRequest)
 			return
 		}
 	}
@@ -143,7 +143,7 @@ func Handler(s *session.Session) {
 		}
 		rb := new(api.ResponseBody)
 		rb.Result = acc
-		api.WriteResponse(s, rb)
+		api.WriteResponseJSON(s, rb)
 	}
 	/* t := &http.Transport{}
 	t.RegisterProtocol("file", http.NewFileTransport(http.Dir("/")))

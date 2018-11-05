@@ -1,10 +1,4 @@
-/*
-Package timeline "Every package should have a package comment, a block comment preceding the package clause.
-For multi-file packages, the package comment only needs to be present in one file, and any
-one will do. The package comment should introduce the package and provide information
-relevant to the package as a whole. It will appear first on the godoc page and should set
-up the detailed documentation that follows."
-*/
+// Package timeline returns the logged user's timeline entities count.
 package timeline
 
 import (
@@ -104,7 +98,7 @@ func Handler(s *session.Session) {
 				return
 			}
 			for _, v := range uKeys {
-				userTagKeys, err = userTag.GetKeysProjected(s.Ctx, v)
+				userTagKeys, err = userTag.GetKeysUserOrTag(s.Ctx, v)
 				if err == datastore.Done {
 					if len(userTagKeys) == 0 {
 						log.Printf("Path: %s, Request: getting user's tags, Error: %v\n", s.R.URL.Path, err)
@@ -145,7 +139,7 @@ func Handler(s *session.Session) {
 				return
 			}
 		} else {
-			userTagKeys, err = userTag.GetKeysProjected(s.Ctx, uKey)
+			userTagKeys, err = userTag.GetKeysUserOrTag(s.Ctx, uKey)
 			if err == datastore.Done {
 				if len(userTagKeys) == 0 {
 					log.Printf("Path: %s, Request: getting user's tags, Error: %v\n", s.R.URL.Path, err)
@@ -174,7 +168,6 @@ func Handler(s *session.Session) {
 		}
 	}
 	rb := new(api.ResponseBody)
-	// FIND A WAY TO MAKE QUERIES CONQURENTLY
 	crsrD, err := datastore.DecodeCursor(encCrsrD)
 	if err != nil {
 		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
@@ -193,6 +186,7 @@ func Handler(s *session.Session) {
 		http.Error(s.W, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// FIND A WAY TO MAKE QUERIES CONQURENTLY
 	var countT, countD, countO, countSp int
 	countD, err = demand.GetNewestCount(s.Ctx, crsrD, tagKeysQuery)
 	if err != nil {
@@ -208,5 +202,5 @@ func Handler(s *session.Session) {
 	}
 	countT = countD + countO + countSp
 	rb.Result = countT
-	api.WriteResponse(s, rb)
+	api.WriteResponseJSON(s, rb)
 }

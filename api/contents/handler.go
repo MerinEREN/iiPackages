@@ -28,8 +28,6 @@ func Handler(s *session.Session) {
 	var err error
 	switch s.R.Method {
 	case "POST":
-		rb := new(api.ResponseBody)
-		cs := make(content.Contents)
 		var cx []*content.Content
 		// Using 'decoder' is an alternative and can be used if response body has
 		// more than one json object.
@@ -55,6 +53,7 @@ func Handler(s *session.Session) {
 			}
 			cx = append(cx, c)
 		}
+		cs := make(content.Contents)
 		// Reset the cursor and get the entities from the begining.
 		var crsr datastore.Cursor
 		cs, crsr, err = content.PutMultiAndGetMulti(s, crsr, cx)
@@ -87,8 +86,10 @@ func Handler(s *session.Session) {
 				v.PageIDs = ekx
 			}
 		}
+		rb := new(api.ResponseBody)
 		rb.Result = cs
 		rb.PrevPageURL = "/contents?c=" + crsr.String()
+		s.W.Header().Set("Content-Type", "application/json")
 		s.W.WriteHeader(http.StatusCreated)
 		api.WriteResponse(s, rb)
 	case "PUT":
@@ -136,8 +137,6 @@ func Handler(s *session.Session) {
 		}
 		s.W.WriteHeader(http.StatusNoContent)
 	default:
-		rb := new(api.ResponseBody)
-		cs := make(content.Contents)
 		crsr, err := datastore.DecodeCursor(s.R.FormValue("c"))
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
@@ -150,6 +149,8 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		cs := make(content.Contents)
+		rb := new(api.ResponseBody)
 		if pID := s.R.FormValue("pageID"); pID != "" {
 			k := datastore.NewKey(s.Ctx, "Page", pID, 0, nil)
 			_, kx, err := pageContent.Get(s, k)
@@ -173,8 +174,8 @@ func Handler(s *session.Session) {
 				}
 				rb.Result = contentsClient
 			} else {
-				// Returning an empty map.
-				rb.Result = cs
+				s.W.WriteHeader(http.StatusNoContent)
+				return
 			}
 		} else {
 			cs, crsr, err = content.GetMulti(s, crsr, nil, nil)
@@ -205,6 +206,6 @@ func Handler(s *session.Session) {
 			rb.PrevPageURL = "/contents?c=" + crsr.String()
 			rb.Result = cs
 		}
-		api.WriteResponse(s, rb)
+		api.WriteResponseJSON(s, rb)
 	}
 }
