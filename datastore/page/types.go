@@ -4,14 +4,14 @@ import (
 	"time"
 )
 
-// Page "Exports should have a comment"
+// Page is one of the pages in the app.
 // datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 type Page struct {
-	Title        string    `json:"title"`
+	ID           string    `datastore:"-"`
+	Text         string    `json:"text"`
 	Link         string    `json:"link"`
 	Created      time.Time `json:"created"`
 	LastModified time.Time `json:"lastModified"`
-	ID           string    `datastore:"-"`
 }
 
 // Pages "Exports should have a comment"

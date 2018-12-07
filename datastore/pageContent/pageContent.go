@@ -9,83 +9,89 @@ up the detailed documentation that follows."
 package pageContent
 
 import (
-	"github.com/MerinEREN/iiPackages/session"
+	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
 )
 
-// Get returns the content keys as a slice if the page key is provided
-// or returns the page keys as a slice if content ID is provided and an error.
-// Also as a first argument returns PageContent keys as a slice.
-func Get(s *session.Session, key interface{}) ([]*datastore.Key, []*datastore.Key, error) {
-	var pckx []*datastore.Key
+// GetKeysWithPageOrContentKeys returns the pageContent keys with content keys as a slice
+// if the page key is provided or returns the page keys as a slice
+// if content key is provided and also an error.
+func GetKeysWithPageOrContentKeys(ctx context.Context, key *datastore.Key) (
+	[]*datastore.Key, []*datastore.Key, error) {
 	var kx []*datastore.Key
-	var k *datastore.Key
-	var err error
+	var kporcx []*datastore.Key
 	q := datastore.NewQuery("PageContent")
-	switch v := key.(type) {
-	case string:
-		// Content Kind
-		k, err = datastore.DecodeKey(v)
-		if err != nil {
-			return nil, nil, err
+	kind := key.Kind()
+	switch kind {
+	case "Content":
+		q = q.
+			Filter("ContentKey =", key).
+			KeysOnly()
+		for it := q.Run(ctx); ; {
+			k, err := it.Next(nil)
+			if err == datastore.Done {
+				return kx, kporcx, err
+			}
+			if err != nil {
+				return nil, nil, err
+			}
+			kx = append(kx, k)
+			kporcx = append(kporcx, k.Parent())
 		}
-		q = q.Filter("ContentKey =", k).
-			Project("PageKey")
-	case *datastore.Key:
-		// Page Kind
-		k = v
-		q = q.Filter("PageKey =", k).
-			Project("ContentKey")
-	}
-	for it := q.Run(s.Ctx); ; {
-		pc := new(PageContent)
-		pck, err := it.Next(pc)
-		if err == datastore.Done {
-			return pckx, kx, err
+	default:
+		// "Page" kind
+		q = q.
+			Ancestor(key)
+		for it := q.Run(ctx); ; {
+			pc := new(PageContent)
+			k, err := it.Next(pc)
+			if err == datastore.Done {
+				return kx, kporcx, err
+			}
+			if err != nil {
+				return nil, nil, err
+			}
+			kx = append(kx, k)
+			kporcx = append(kporcx, pc.ContentKey)
 		}
-		if err != nil {
-			return nil, nil, err
-		}
-		if k.Kind() == "Page" {
-			kx = append(kx, pc.ContentKey)
-		} else {
-			kx = append(kx, pc.PageKey)
-		}
-		pckx = append(pckx, pck)
 	}
 }
 
 // GetKeysOnly returns corresponding pageContent keys by provided content or page key
 // and also returns an error.
-func GetKeysOnly(s *session.Session, k *datastore.Key) ([]*datastore.Key, error) {
-	var pckx []*datastore.Key
+func GetKeysOnly(ctx context.Context, k *datastore.Key) ([]*datastore.Key, error) {
+	var kx []*datastore.Key
 	q := datastore.NewQuery("PageContent")
 	if k.Kind() == "Page" {
-		q = q.Filter("PageKey =", k)
+		q = q.
+			Ancestor(k)
 	} else {
-		q = q.Filter("ContentKey =", k)
+		q = q.
+			Filter("ContentKey =", k)
 	}
-	q = q.KeysOnly()
-	for it := q.Run(s.Ctx); ; {
+	q = q.
+		KeysOnly()
+	for it := q.Run(ctx); ; {
 		k, err := it.Next(nil)
 		if err == datastore.Done {
-			return pckx, err
+			return kx, err
 		}
 		if err != nil {
 			return nil, err
 		}
-		pckx = append(pckx, k)
+		kx = append(kx, k)
 	}
 }
 
 // GetCount returns the count of the entities that has provided key and an error.
-func GetCount(s *session.Session, k *datastore.Key) (c int, err error) {
+func GetCount(ctx context.Context, k *datastore.Key) (c int, err error) {
 	q := datastore.NewQuery("PageContent")
 	if k.Kind() == "Page" {
-		q = q.Filter("PageKey =", k)
+		q = q.
+			Ancestor(k)
 	} else {
 		q = q.Filter("ContentKey =", k)
 	}
-	c, err = q.Count(s.Ctx)
+	c, err = q.Count(ctx)
 	return
 }

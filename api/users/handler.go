@@ -1,9 +1,14 @@
-// Package users returns only non adimin users of an account and saves user and user tags.
+/*
+Package users returns only non adimin users of an account and saves user user roles
+and user tags.
+*/
 package users
 
 import (
 	"github.com/MerinEREN/iiPackages/api"
+	userLogged "github.com/MerinEREN/iiPackages/api/user"
 	"github.com/MerinEREN/iiPackages/datastore/user"
+	"github.com/MerinEREN/iiPackages/datastore/userRole"
 	"github.com/MerinEREN/iiPackages/datastore/userTag"
 	"github.com/MerinEREN/iiPackages/session"
 	valid "github.com/asaskevich/govalidator"
@@ -11,12 +16,15 @@ import (
 	"google.golang.org/appengine/datastore"
 	"log"
 	"net/http"
+	"strings"
 )
 
-// Handler returns the only non adimin users of an account via account id
+// Handler returns the only non logged users of an account via account id
 // with limited properties to list in User Settings page.
 // Also puts a user into the User kind with account id as parent key
-// and user tags into the UserTag kind if the request method is POST.
+// and logged user's type as type,
+// user roles into the UserRole kind and user tags into the UserTag kind
+// if the request method is POST.
 func Handler(s *session.Session) {
 	accID := s.R.FormValue("accID")
 	// CHECK THIS KONTROL BELOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -31,13 +39,13 @@ func Handler(s *session.Session) {
 		http.Error(s.W, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	uNew := new(user.User)
 	var crsr datastore.Cursor
 	var us user.Users
 	var count interface{}
+	uLogged := new(user.User)
+	uNew := new(user.User)
 	switch s.R.Method {
 	case "POST":
-		// GET ROLES TOO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		email := s.R.FormValue("email")
 		if !valid.IsEmail(email) {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
@@ -47,32 +55,77 @@ func Handler(s *session.Session) {
 				http.StatusExpectationFailed)
 			return
 		}
-		tagIDs := s.R.FormValue("tagIDs")
-		uk := new(datastore.Key)
-		utx := make(userTag.UserTags, len(tagIDs))
-		utkx := make([]*datastore.Key, len(tagIDs))
+		uLogged, err = userLogged.Get(s)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		uNew = &user.User{
+			Email:    email,
+			IsActive: true,
+			Type:     uLogged.Type,
+		}
+		roleIDsString := s.R.FormValue("roleIDs")
+		tagIDsString := s.R.FormValue("tagIDs")
+		roleIDs := strings.Split(roleIDsString, ",")
+		for _, v := range roleIDs {
+			if v == "" {
+				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
+					"Enpty roleID value or no roleIDs")
+				http.Error(s.W, "Enpty roleID value or no roleIDs",
+					http.StatusBadRequest)
+				return
+			}
+		}
+		tagIDs := strings.Split(tagIDsString, ",")
+		ku := new(datastore.Key)
+		var urx userRole.UserRoles
+		var utx userTag.UserTags
+		var kurx []*datastore.Key
+		var kutx []*datastore.Key
 		opts := new(datastore.TransactionOptions)
 		opts.XG = true
-		err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (
+		// USAGE "s" INSTEAD OF "ctx" INSIDE THE TRANSACTION IS WRONG !!!!!!!!!!!!!
+		err = datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (
 			err1 error) {
-			uNew, uk, err1 = user.New(s, email, nil, accKey)
+			ku, uNew, err1 = user.Put(s, uNew, accKey)
 			if err1 != nil {
 				return
 			}
-			for _, v := range tagIDs {
-				ut := new(userTag.UserTag)
-				// tk, err := datastore.DecodeKey(v)
-				tk, err := datastore.DecodeKey(string(v))
+			for _, v := range roleIDs {
+				ur := new(userRole.UserRole)
+				kr, err := datastore.DecodeKey(v)
 				if err != nil {
 					return
 				}
-				ut.TagKey = tk
-				utx = append(utx, ut)
-				utk := datastore.NewKey(s.Ctx, "UserTag", string(v), 0, uk)
-				utkx = append(utkx, utk)
+				ur.RoleKey = kr
+				urx = append(urx, ur)
+				kur := datastore.NewIncompleteKey(s.Ctx, "UserRole", ku)
+				kurx = append(kurx, kur)
 			}
-			if len(utkx) > 0 {
-				_, err1 = datastore.PutMulti(ctx, utkx, utx)
+			if len(kurx) > 0 {
+				_, err1 = datastore.PutMulti(ctx, kurx, urx)
+				if err1 != nil {
+					return
+				}
+			}
+			for _, v := range tagIDs {
+				if v != "" {
+					ut := new(userTag.UserTag)
+					kt, err := datastore.DecodeKey(v)
+					if err != nil {
+						return
+					}
+					ut.TagKey = kt
+					utx = append(utx, ut)
+					kut := datastore.NewIncompleteKey(s.Ctx, "UserTag", ku)
+					kutx = append(kutx, kut)
+				}
+			}
+			if len(kutx) > 0 {
+				_, err1 = datastore.PutMulti(ctx, kutx, utx)
 				if err1 != nil {
 					return
 				}
@@ -105,26 +158,37 @@ func Handler(s *session.Session) {
 		}
 	}
 	// Get the entities from the begining by reseted cursor if the method is Post
-	// Or get from the given cursor.
+	// or get from the given cursor.
 	us, crsr, err = user.GetProjected(s.Ctx, accKey, crsr, count)
 	if err != nil && err != datastore.Done {
 		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 		http.Error(s.W, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Remove admin user from the users map
-	brk := false
+	// Remove admin user from the users map.
+	/* var isAdmin bool
 	for i, v := range us {
-		if brk {
+		isAdmin, err = v.IsAdmin(s.Ctx)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if isAdmin {
+			delete(us, i)
 			break
 		}
-		for _, v2 := range v.Roles {
-			if v2 == "admin" {
-				delete(us, i)
-				brk = true
-				break
-			}
+	} */
+	// Remove logged user from the users map.
+	for i, v := range us {
+		if uLogged.Email == v.Email {
+			delete(us, i)
+			break
 		}
+	}
+	if len(us) == 0 {
+		s.W.WriteHeader(http.StatusNoContent)
+		return
 	}
 	if s.R.Method == "POST" {
 		us[uNew.ID] = uNew

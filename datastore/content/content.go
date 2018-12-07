@@ -8,10 +8,12 @@ up the detailed documentation that follows."
 package content
 
 import (
+	"crypto/md5"
 	"github.com/MerinEREN/iiPackages/datastore/pageContent"
 	"github.com/MerinEREN/iiPackages/session"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
+	"io"
 	"time"
 )
 
@@ -55,7 +57,7 @@ func GetMulti(s *session.Session, crsr datastore.Cursor, limit, kx interface{}) 
 			return cs, crsr, err
 		}
 		if err != nil {
-			return nil, crsr, err
+			return cs, crsr, err
 		}
 		c.ID = k.Encode()
 		cs[c.ID] = c
@@ -71,7 +73,9 @@ is POST.
 */
 func PutMulti(s *session.Session, cx []*Content) (Contents, error) {
 	var kx []*datastore.Key
-	var pckx []*datastore.Key
+	var kpcxDelete []*datastore.Key
+	var kpcxPut []*datastore.Key
+	var pcx pageContent.PageContents
 	var err error
 	for _, v := range cx {
 		k := new(datastore.Key)
@@ -80,52 +84,57 @@ func PutMulti(s *session.Session, cx []*Content) (Contents, error) {
 			if err != nil {
 				return nil, err
 			}
-			pckx2, err := pageContent.GetKeysOnly(s, k)
+			kpcx2, err := pageContent.GetKeysOnly(s.Ctx, k)
 			if err != datastore.Done {
 				return nil, err
 			}
-			for _, v2 := range pckx2 {
-				pckx = append(pckx, v2)
+			for _, v2 := range kpcx2 {
+				kpcxDelete = append(kpcxDelete, v2)
 			}
 		} else {
-			k = datastore.NewIncompleteKey(s.Ctx, "Content", nil)
+			// Max stringID lenght for a datastore key is 500 acording to link
+			// https://stackoverflow.com/questions/2557632/how-long-max-
+			// characters-can-a-datastore-entity-key-name-be-is-it-bad-to-haver
+			var stringID string
+			if len(v.Values["en-US"]) > 100 {
+				h := md5.New()
+				io.WriteString(h, v.Values["en-US"])
+				stringID = string(h.Sum(nil))
+			} else {
+				stringID = v.Values["en-US"]
+			}
+			k = datastore.NewKey(s.Ctx, "Content", stringID, 0, nil)
 			v.Created = time.Now()
 		}
 		kx = append(kx, k)
 		v.LastModified = time.Now()
+		for _, v2 := range v.PageIDs {
+			kp := new(datastore.Key)
+			kp, err = datastore.DecodeKey(v2)
+			if err != nil {
+				return nil, err
+			}
+			kpc := datastore.NewIncompleteKey(s.Ctx, "PageContent", kp)
+			kpcxPut = append(kpcxPut, kpc)
+			pc := new(pageContent.PageContent)
+			pc.ContentKey = k
+			pcx = append(pcx, pc)
+		}
 	}
 	opts := new(datastore.TransactionOptions)
 	opts.XG = true
 	err = datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
 		if s.R.Method == "PUT" {
-			err1 = datastore.DeleteMulti(ctx, pckx)
+			err1 = datastore.DeleteMulti(ctx, kpcxDelete)
 			if err1 != nil {
 				return
 			}
 		}
-		// Can not store incomplete keys in datastore.
-		// ALWAYS USE RETURNED KEYS.
-		kx, err1 = datastore.PutMulti(ctx, kx, cx)
+		_, err1 = datastore.PutMulti(ctx, kpcxPut, pcx)
 		if err1 != nil {
 			return
 		}
-		for i, v := range cx {
-			for _, v2 := range v.PageIDs {
-				pck := datastore.NewIncompleteKey(ctx, "PageContent", nil)
-				pc := new(pageContent.PageContent)
-				pc.ContentKey = kx[i]
-				pk := new(datastore.Key)
-				pk, err1 = datastore.DecodeKey(v2)
-				if err1 != nil {
-					return
-				}
-				pc.PageKey = pk
-				_, err1 = datastore.Put(ctx, pck, pc)
-				if err1 != nil {
-					return
-				}
-			}
-		}
+		_, err1 = datastore.PutMulti(ctx, kx, cx)
 		return
 	}, opts)
 	if err != nil {
@@ -150,6 +159,7 @@ func PutMultiAndGetMulti(s *session.Session, crsr datastore.Cursor, cx []*Conten
 	Contents, datastore.Cursor, error) {
 	csPut := make(Contents)
 	csGet := make(Contents)
+	// USAGE "s" INSTEAD OF "ctx" INSIDE THE TRANSACTION IS WRONG !!!!!!!!!!!!!!!!!!!!!
 	err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
 		if csPut, err1 = PutMulti(s, cx); err1 != nil {
 			return
@@ -170,25 +180,25 @@ func PutMultiAndGetMulti(s *session.Session, crsr datastore.Cursor, cx []*Conten
 // also returns an error.
 func DeleteMulti(s *session.Session, ekx []string) error {
 	var kx []*datastore.Key
-	var pckx []*datastore.Key
+	var kpcx []*datastore.Key
 	for _, v := range ekx {
 		k, err := datastore.DecodeKey(v)
 		if err != nil {
 			return err
 		}
 		kx = append(kx, k)
-		pckx2, err := pageContent.GetKeysOnly(s, k)
+		kpcx2, err := pageContent.GetKeysOnly(s.Ctx, k)
 		if err != datastore.Done {
 			return err
 		}
-		for _, v2 := range pckx2 {
-			pckx = append(pckx, v2)
+		for _, v2 := range kpcx2 {
+			kpcx = append(kpcx, v2)
 		}
 	}
 	opts := new(datastore.TransactionOptions)
 	opts.XG = true
 	return datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
-		err1 = datastore.DeleteMulti(ctx, pckx)
+		err1 = datastore.DeleteMulti(ctx, kpcx)
 		if err1 != nil {
 			return
 		}

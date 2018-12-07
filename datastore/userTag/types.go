@@ -5,6 +5,7 @@ import (
 )
 
 // UserTag datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// User key is the parent key.
 type UserTag struct {
 	TagKey *datastore.Key
 }

@@ -4,12 +4,12 @@ import (
 	"time"
 )
 
-// Language "datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!"
+// Language is an app language.
 // "ID" is language code and
-// "Name" is a content id to fulfill multilang requirements.
+// "ContentID" is an encoded "Content" key for multilang usage purpose.
 type Language struct {
 	ID           string    `datastore:"-"`
-	Name         string    `json:"name"`
+	ContentID    string    `json:"contentID"`
 	Link         string    `json:"link"`
 	Created      time.Time `json:"created"`
 	LastModified time.Time `json:"lastModified"`

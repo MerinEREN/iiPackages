@@ -1,18 +1,17 @@
-// Package tags posts a tag and also gets all tags.
-package tags
+// Package roleTypes posts a roleType and also gets all roleTypes.
+package roleTypes
 
 import (
-	// "github.com/MerinEREN/iiPackages/api/user"
 	"github.com/MerinEREN/iiPackages/api"
-	"github.com/MerinEREN/iiPackages/datastore/tag"
+	"github.com/MerinEREN/iiPackages/datastore/roleType"
 	"github.com/MerinEREN/iiPackages/session"
 	"google.golang.org/appengine/datastore"
 	"log"
 	"net/http"
 )
 
-// Handler posts a tag and returns all the tags from the begining of the kind
-// and gets all the tags from the begining of the kind.
+// Handler posts a roleType and returns all the roleTypes from the begining of the kind
+// and gets all the roleTypes from the begining of the kind.
 func Handler(s *session.Session) {
 	// THE CONTROLS BELOVE PREVENT GET REQUEST THAT NECESSARY FOR SELECT SOME SELECT
 	// FIELDS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -51,38 +50,38 @@ func Handler(s *session.Session) {
 	} */
 	switch s.R.Method {
 	case "POST":
-		contentID := s.R.FormValue("contentID")
-		t := &tag.Tag{
-			ContentID: contentID,
+		ID := s.R.FormValue("ID")
+		rt := &roleType.RoleType{
+			ID: ID,
 		}
 		// Reset the cursor and get the entities from the begining.
 		var crsr datastore.Cursor
-		ts, err := tag.PutAndGetMulti(s, t)
+		rts, err := roleType.PutAndGetMulti(s, rt)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		rb := new(api.ResponseBody)
-		rb.Result = ts
-		rb.PrevPageURL = "/tags?c=" + crsr.String()
+		rb.Result = rts
+		rb.PrevPageURL = "/roleTypes?c=" + crsr.String()
 		s.W.Header().Set("Content-Type", "application/json")
 		s.W.WriteHeader(http.StatusCreated)
 		api.WriteResponse(s, rb)
 	default:
 		// Handles "GET" requests
-		ts, err := tag.GetMulti(s.Ctx, nil)
+		rts, err := roleType.GetMulti(s.Ctx, nil)
 		if err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if len(ts) == 0 {
+		if len(rts) == 0 {
 			s.W.WriteHeader(http.StatusNoContent)
 			return
 		}
 		rb := new(api.ResponseBody)
-		rb.Result = ts
+		rb.Result = rts
 		api.WriteResponseJSON(s, rb)
 	}
 }

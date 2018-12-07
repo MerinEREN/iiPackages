@@ -23,10 +23,13 @@ var (
 
 // GetMulti returns limited entitity from the given cursor.
 // If limit is nil default limit will be used.
-func GetMulti(s *session.Session, c datastore.Cursor, limit interface{}) (Languages, datastore.Cursor, error) {
+func GetMulti(s *session.Session, c datastore.Cursor, limit interface{}) (Languages,
+	datastore.Cursor, error) {
 	ls := make(Languages)
 	// Maybe -LastModied should be the order ctireia if consider UX, think about that.
-	q := datastore.NewQuery("Language").Project("Name", "Link").Order("-Created")
+	q := datastore.NewQuery("Language").
+		Project("ContentID", "Link").
+		Order("-Created")
 	if c.String() != "" {
 		q = q.Start(c)
 	}
@@ -45,7 +48,7 @@ func GetMulti(s *session.Session, c datastore.Cursor, limit interface{}) (Langua
 		}
 		if err != nil {
 			err = ErrFindLanguage
-			return nil, c, err
+			return ls, c, err
 		}
 		l.ID = k.StringID()
 		ls[l.ID] = l
@@ -91,6 +94,7 @@ func PutAndGetMulti(s *session.Session, c datastore.Cursor, l *Language) (Langua
 	datastore.Cursor, error) {
 	ls := make(Languages)
 	lNew := new(Language)
+	// USAGE "s" INSTEAD OF "ctx" INSIDE THE TRANSACTION IS WRONG !!!!!!!!!!!!!!!!!!!!!
 	err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
 		lNew, err1 = Put(s, l)
 		if err1 != nil {

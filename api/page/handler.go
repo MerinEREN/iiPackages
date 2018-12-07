@@ -13,15 +13,21 @@ import (
 )
 
 // Handler gets, deletes and modifies the page by given page ID as encoded key.
+// ADD AUTHORISATION CONTROL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 func Handler(s *session.Session) {
 	ID := strings.Split(s.R.URL.Path, "/")[2]
+	if ID == "" {
+		log.Printf("Path: %s, Error: no page ID to delete\n", s.R.URL.Path)
+		http.Error(s.W, "No page ID to delete", http.StatusBadRequest)
+		return
+	}
 	switch s.R.Method {
 	case "PUT":
 		// GET THE ENTITY AS BLOB OBJECT TO PREVENT RunInTransaction IN PUT FUNC !!
-		title := s.R.FormValue("title")
+		text := s.R.FormValue("text")
 		p := &page.Page{
-			ID:    ID,
-			Title: title,
+			ID:   ID,
+			Text: text,
 		}
 		mpf, hdr, err := s.R.FormFile("file")
 		if err != nil {

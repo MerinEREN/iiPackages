@@ -1,16 +1,16 @@
 /*
-Package offer "Every package should have a package comment, a block comment preceding the package clause.
+Package demands "Every package should have a package comment, a block comment preceding the package clause.
 For multi-file packages, the package comment only needs to be present in one file, and any
 one will do. The package comment should introduce the package and provide information
 relevant to the package as a whole. It will appear first on the godoc page and should set
 up the detailed documentation that follows."
 */
-package offer
+package demands
 
 import (
 	"encoding/json"
 	"github.com/MerinEREN/iiPackages/api"
-	"github.com/MerinEREN/iiPackages/datastore/offer"
+	"github.com/MerinEREN/iiPackages/datastore/demand"
 	"github.com/MerinEREN/iiPackages/datastore/user"
 	"github.com/MerinEREN/iiPackages/datastore/userTag"
 	"github.com/MerinEREN/iiPackages/session"
@@ -20,8 +20,8 @@ import (
 	"net/http"
 )
 
-// Handler returns account offers via account ID if provided.
-// Otherwise if the user is "admin" returns offers via account tag keys, else
+// Handler returns account demands via account ID if provided.
+// Otherwise if the user is "admin" returns demands via account tag keys, else
 // returns only via user tag keys.
 // SAVE WITH ACCOUNT KEY AS THE PARENT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 func Handler(s *session.Session) {
@@ -33,7 +33,7 @@ func Handler(s *session.Session) {
 		return
 	}
 	rb := new(api.ResponseBody)
-	var os offer.Offers
+	var ds demand.Demands
 	if accID != "" {
 		aKey, err := datastore.DecodeKey(accID)
 		if err != nil {
@@ -41,18 +41,18 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		os, crsr, err = offer.GetViaParent(s.Ctx, crsr, aKey)
+		ds, crsr, err = demand.GetViaParent(s.Ctx, crsr, aKey)
 		if err == datastore.Done {
-			if len(os) == 0 {
+			if len(ds) == 0 {
 				s.W.WriteHeader(http.StatusNoContent)
 				return
 			}
 		} else if err != nil {
-			log.Printf("Path: %s, Request: get offers via parent key, Error: %v\n", s.R.URL.Path, err)
+			log.Printf("Path: %s, Request: get demands via parent key, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		rb.PrevPageURL = "/offers?aID=" + accID + "&c=" + crsr.String()
+		rb.PrevPageURL = "/demands?aID=" + accID + "&c=" + crsr.String()
 	} else {
 		// For timeline
 		var userTagKeys []*datastore.Key
@@ -105,8 +105,9 @@ func Handler(s *session.Session) {
 				}
 			}
 		}
-		if u.IsAdmin() {
-			item, err := memcache.Get(s.Ctx, "accTagKeys")
+		isAdmin, err := u.IsAdmin(s.Ctx)
+		if isAdmin {
+			item, err = memcache.Get(s.Ctx, "accTagKeys")
 			if err == nil {
 				err = json.Unmarshal(item.Value, &accTagKeys)
 				if err != nil {
@@ -203,50 +204,50 @@ func Handler(s *session.Session) {
 		}
 		switch drct {
 		case "next":
-			os, crsr, err = offer.GetNewest(s.Ctx, crsr, tagKeysQuery)
+			ds, crsr, err = demand.GetNewest(s.Ctx, crsr, tagKeysQuery)
 			if err == datastore.Done {
-				if len(os) == 0 {
-					log.Printf("Path: %s, Request: get newer offers, Error: %v\n", s.R.URL.Path, err)
+				if len(ds) == 0 {
+					log.Printf("Path: %s, Request: get newer demands, Error: %v\n", s.R.URL.Path, err)
 					s.W.WriteHeader(http.StatusNoContent)
 					return
 				}
 			} else if err != nil {
-				log.Printf("Path: %s, Request: get newer offers, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Request: get newer demands, Error: %v\n", s.R.URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			rb.NextPageURL = "/offers?uID=" + s.R.FormValue("uID") + "&d=next&c=" + crsr.String()
+			rb.NextPageURL = "/demands?uID=" + s.R.FormValue("uID") + "&d=next&c=" + crsr.String()
 		case "prev":
-			os, crsr, err = offer.GetOldest(s.Ctx, crsr, tagKeysQuery)
+			ds, crsr, err = demand.GetOldest(s.Ctx, crsr, tagKeysQuery)
 			if err == datastore.Done {
-				if len(os) == 0 {
+				if len(ds) == 0 {
 					s.W.WriteHeader(http.StatusNoContent)
 					return
 				}
 			} else if err != nil {
-				log.Printf("Path: %s, Request: get older offers, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Request: get older demands, Error: %v\n", s.R.URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			rb.PrevPageURL = "/offers?uID=" + s.R.FormValue("uID") + "&d=prev&c=" + crsr.String()
+			rb.PrevPageURL = "/demands?uID=" + s.R.FormValue("uID") + "&d=prev&c=" + crsr.String()
 		default:
 			var crsrNew datastore.Cursor
 			var crsrOld datastore.Cursor
-			os, crsrNew, crsrOld, err = offer.Get(s.Ctx, tagKeysQuery)
+			ds, crsrNew, crsrOld, err = demand.Get(s.Ctx, tagKeysQuery)
 			if err == datastore.Done {
-				if len(os) == 0 {
+				if len(ds) == 0 {
 					s.W.WriteHeader(http.StatusNoContent)
 					return
 				}
 			} else if err != nil {
-				log.Printf("Path: %s, Request: get offers, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Request: get demands, Error: %v\n", s.R.URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			rb.NextPageURL = "/offers?uID=" + s.R.FormValue("uID") + "&d=next&c=" + crsrNew.String()
-			rb.PrevPageURL = "/offers?uID=" + s.R.FormValue("uID") + "&d=prev&c=" + crsrOld.String()
+			rb.NextPageURL = "/demands?uID=" + s.R.FormValue("uID") + "&d=next&c=" + crsrNew.String()
+			rb.PrevPageURL = "/demands?uID=" + s.R.FormValue("uID") + "&d=prev&c=" + crsrOld.String()
 		}
 	}
-	rb.Result = os
+	rb.Result = ds
 	api.WriteResponseJSON(s, rb)
 }

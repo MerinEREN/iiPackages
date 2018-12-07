@@ -2,7 +2,6 @@ package user
 
 import (
 	"github.com/MerinEREN/iiPackages/datastore/phone"
-	"google.golang.org/appengine/datastore"
 	"time"
 )
 
@@ -13,27 +12,27 @@ a comment can often be perfunctory.
 */
 
 // User account key is Ancestor
+// "Type" values are inHouse and customer for now.
 type User struct {
-	ID                string           `datastore:"-"`
-	Email             string           `json:"email"`
-	Name              Name             `json:"name"`
-	Link              string           `json:"link"`
-	Gender            string           `json:"gender"`
-	Status            string           `json:"status"`
-	Type              string           `json:"type"`
-	Roles             []string         `json:"roles"`
-	BirthDate         time.Time        `datastore:",noindex" json:"birthDate"`
-	Created           time.Time        `json:"created"`
-	LastModified      time.Time        `datastore:",noindex" json:"lastModified"`
-	IsActive          bool             `json:"isactive"`
-	PurchasedServices []*datastore.Key `datastore:"-" json:"purchasedSrvices"`
-	Phones            phone.Phones     `datastore:"-" json:"phones"`
+	ID           string       `datastore:"-"`
+	Email        string       `json:"email"`
+	Name         Name         `json:"name"`
+	Link         string       `json:"link"`
+	Type         string       `json:"type"`
+	Status       string       `json:"status"`
+	Gender       string       `json:"gender"`
+	BirthDate    time.Time    `datastore:",noindex" json:"birthDate"`
+	Created      time.Time    `json:"created"`
+	LastModified time.Time    `datastore:",noindex" json:"lastModified"`
+	IsActive     bool         `json:"isactive"`
+	Phones       phone.Phones `datastore:"-" json:"phones"`
 	// Password string `json:"password"`
 	// Online, offline, frozen
 	// User could be deactivated by superiors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// Demands Demands `datastore:"-" json:"demands""`
 	// Offers Offers `datastore:"-" json:"offers""`
 	// ServicePacks ServicePacks `datastore:"-" json:"servicepacks""`
+	// PurchasedServices []*datastore.Key `datastore:"-" json:"purchasedSrvices"`
 }
 
 // Name is user name struct with "First" and "Last" fields.

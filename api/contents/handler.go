@@ -5,7 +5,6 @@ one will do. The package comment should introduce the package and provide inform
 relevant to the package as a whole. It will appear first on the godoc page and should set
 up the detailed documentation that follows."
 */
-// GET LANGUAGE CODE AND PAGE NAME FROM URL AND HANDLE THE REQUEST HERE.
 package contents
 
 import (
@@ -24,6 +23,7 @@ import (
 )
 
 // Handler handles contents of pages and contents page.
+// ADD AUTHORISATION CONTROL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 func Handler(s *session.Session) {
 	var err error
 	switch s.R.Method {
@@ -62,6 +62,7 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		k := new(datastore.Key)
 		for _, v := range cs {
 			// If entity is from datastore.
 			if len(v.PageIDs) == 0 {
@@ -73,17 +74,23 @@ func Handler(s *session.Session) {
 					return
 				}
 				v.Values = contentValues
-				_, kx, err := pageContent.Get(s, v.ID)
+				k, err = datastore.DecodeKey(v.ID)
+				if err != nil {
+					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+					http.Error(s.W, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				_, kpx, err := pageContent.GetKeysWithPageOrContentKeys(s.Ctx, k)
 				if err != datastore.Done {
 					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 					http.Error(s.W, err.Error(), http.StatusInternalServerError)
 					return
 				}
-				var ekx []string
-				for _, v := range kx {
-					ekx = append(ekx, v.Encode())
+				var ekpx []string
+				for _, v2 := range kpx {
+					ekpx = append(ekpx, v2.Encode())
 				}
-				v.PageIDs = ekx
+				v.PageIDs = ekpx
 			}
 		}
 		rb := new(api.ResponseBody)
@@ -153,7 +160,7 @@ func Handler(s *session.Session) {
 		rb := new(api.ResponseBody)
 		if pID := s.R.FormValue("pageID"); pID != "" {
 			k := datastore.NewKey(s.Ctx, "Page", pID, 0, nil)
-			_, kx, err := pageContent.Get(s, k)
+			_, kx, err := pageContent.GetKeysWithPageOrContentKeys(s.Ctx, k)
 			if err != datastore.Done {
 				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -166,7 +173,7 @@ func Handler(s *session.Session) {
 					http.Error(s.W, err.Error(), http.StatusInternalServerError)
 					return
 				}
-				contentsClient, err := api.GetLangValue(cs, cookie.Value)
+				contentsClient, err := GetLangValue(cs, cookie.Value)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 					http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -184,6 +191,11 @@ func Handler(s *session.Session) {
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
+			if len(cs) == 0 {
+				s.W.WriteHeader(http.StatusNoContent)
+				return
+			}
+			k := new(datastore.Key)
 			for _, v := range cs {
 				contentValues := make(map[string]string)
 				err = json.Unmarshal(v.ValuesBS, &contentValues)
@@ -193,13 +205,19 @@ func Handler(s *session.Session) {
 					return
 				}
 				v.Values = contentValues
-				_, kx, err := pageContent.Get(s, v.ID)
+				k, err = datastore.DecodeKey(v.ID)
+				if err != nil {
+					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+					http.Error(s.W, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				_, kpx, err := pageContent.GetKeysWithPageOrContentKeys(s.Ctx, k)
 				if err != datastore.Done {
 					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 					http.Error(s.W, err.Error(), http.StatusInternalServerError)
 					return
 				}
-				for _, v2 := range kx {
+				for _, v2 := range kpx {
 					v.PageIDs = append(v.PageIDs, v2.Encode())
 				}
 			}

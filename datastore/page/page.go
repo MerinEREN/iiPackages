@@ -28,7 +28,7 @@ GetMulti returns corresponding entities if keys provided
 Otherwise returns limited entitities from the given cursor.
 If limit is nil default limit will be used.
 */
-func GetMulti(s *session.Session, c datastore.Cursor, limit, kx interface{}) (
+func GetMulti(s *session.Session, crsr datastore.Cursor, limit, kx interface{}) (
 	Pages, datastore.Cursor, error) {
 	ps := make(Pages)
 	if kx, ok := kx.([]*datastore.Key); ok {
@@ -36,19 +36,19 @@ func GetMulti(s *session.Session, c datastore.Cursor, limit, kx interface{}) (
 		// RETURNED ENTITY LIMIT COULD BE A PROBLEM HERE !!!!!!!!!!!!!!!!!!!!!!!!!!
 		err := datastore.GetMulti(s.Ctx, kx, px)
 		if err != nil {
-			return nil, c, err
+			return nil, crsr, err
 		}
 		for i, v := range kx {
 			ps[v.Encode()] = px[i]
 		}
-		return ps, c, err
+		return ps, crsr, err
 	}
-	// Maybe -LastModied should be the order ctireia if consider UX, think about that.
+	// Maybe -LastModied should be the order criteria if consider UX, think about that.
 	q := datastore.NewQuery("Page").
-		Project("Title", "Link").
+		Project("Text", "Link").
 		Order("-Created")
-	if c.String() != "" {
-		q = q.Start(c)
+	if crsr.String() != "" {
+		q = q.Start(crsr)
 	}
 	if limit != nil {
 		l := limit.(int)
@@ -60,27 +60,25 @@ func GetMulti(s *session.Session, c datastore.Cursor, limit, kx interface{}) (
 		p := new(Page)
 		k, err := it.Next(p)
 		if err == datastore.Done {
-			c, err = it.Cursor()
-			return ps, c, err
+			crsr, err = it.Cursor()
+			return ps, crsr, err
 		}
 		if err != nil {
 			err = ErrFindPage
-			return nil, c, err
+			return ps, crsr, err
 		}
 		p.ID = k.Encode()
 		ps[p.ID] = p
 	}
 }
 
-/*
-Put adds or modifies an entity to the kind according to request method.
-*/
+// Put adds to or modifies an entity in the kind according to request method.
 func Put(s *session.Session, p *Page) (*Page, error) {
 	k := new(datastore.Key)
 	var err error
 	p.LastModified = time.Now()
 	if s.R.Method == "POST" {
-		stringID := strings.ToLower(strings.Replace(p.Title, " ", "", -1))
+		stringID := strings.ToLower(strings.Replace(p.Text, " ", "", -1))
 		k = datastore.NewKey(s.Ctx, "Page", stringID, 0, nil)
 		p.Created = time.Now()
 		k, err = datastore.Put(s.Ctx, k, p)
@@ -106,20 +104,21 @@ func Put(s *session.Session, p *Page) (*Page, error) {
 
 // PutAndGetMulti is a transaction which puts the posted item first
 // and then gets entities with the given limit.
-func PutAndGetMulti(s *session.Session, c datastore.Cursor, p *Page) (Pages,
+func PutAndGetMulti(s *session.Session, crsr datastore.Cursor, p *Page) (Pages,
 	datastore.Cursor, error) {
 	ps := make(Pages)
 	pNew := new(Page)
+	// USAGE "s" INSTEAD OF "ctx" INSIDE THE TRANSACTION IS WRONG !!!!!!!!!!!!!!!!!!!!!
 	err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
 		pNew, err1 = Put(s, p)
 		if err1 != nil {
 			return
 		}
-		ps, c, err1 = GetMulti(s, c, 9, nil)
+		ps, crsr, err1 = GetMulti(s, crsr, 9, nil)
 		return
 	}, nil)
 	ps[pNew.ID] = pNew
-	return ps, c, err
+	return ps, crsr, err
 }
 
 // Get returns the page and an error by given encoded key.
@@ -145,29 +144,29 @@ func Delete(s *session.Session, keyEncoded string) error {
 	if err != nil {
 		return err
 	}
-	pckx, ckx, err := pageContent.Get(s, keyEncoded)
+	kpcx, kcx, err := pageContent.GetKeysWithPageOrContentKeys(s.Ctx, k)
 	if err != datastore.Done {
 		return err
 	}
 	var count int
-	var ckx2 []*datastore.Key
-	for _, v := range ckx {
-		count, err = pageContent.GetCount(s, v)
+	var kcx2 []*datastore.Key
+	for _, v := range kcx {
+		count, err = pageContent.GetCount(s.Ctx, v)
 		if err != nil {
 			return err
 		}
 		if count == 1 {
-			ckx2 = append(ckx2, v)
+			kcx2 = append(kcx2, v)
 		}
 	}
 	opts := new(datastore.TransactionOptions)
 	opts.XG = true
 	return datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
-		err1 = datastore.DeleteMulti(ctx, pckx)
+		err1 = datastore.DeleteMulti(ctx, kpcx)
 		if err1 != nil {
 			return
 		}
-		err1 = datastore.DeleteMulti(ctx, ckx2)
+		err1 = datastore.DeleteMulti(ctx, kcx2)
 		if err1 != nil {
 			return
 		}
@@ -182,42 +181,42 @@ func Delete(s *session.Session, keyEncoded string) error {
 // As a return returns an error.
 func DeleteMulti(s *session.Session, ekx []string) error {
 	var kx []*datastore.Key
-	var pckx []*datastore.Key
-	var ckx []*datastore.Key
+	var kpcx []*datastore.Key
+	var kcx []*datastore.Key
 	var count int
-	var pckx2 []*datastore.Key
-	var ckx2 []*datastore.Key
+	var kpcx2 []*datastore.Key
+	var kcx2 []*datastore.Key
 	for _, v := range ekx {
 		k, err := datastore.DecodeKey(v)
 		if err != nil {
 			return err
 		}
 		kx = append(kx, k)
-		pckx2, ckx2, err = pageContent.Get(s, v)
+		kpcx2, kcx2, err = pageContent.GetKeysWithPageOrContentKeys(s.Ctx, k)
 		if err != datastore.Done {
 			return err
 		}
-		for _, v2 := range pckx2 {
-			pckx = append(pckx, v2)
+		for _, v2 := range kpcx2 {
+			kpcx = append(kpcx, v2)
 		}
-		for _, v3 := range ckx2 {
-			count, err = pageContent.GetCount(s, v3)
+		for _, v3 := range kcx2 {
+			count, err = pageContent.GetCount(s.Ctx, v3)
 			if err != nil {
 				return err
 			}
 			if count == 1 {
-				ckx = append(ckx, v3)
+				kcx = append(kcx, v3)
 			}
 		}
 	}
 	opts := new(datastore.TransactionOptions)
 	opts.XG = true
 	return datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
-		err1 = datastore.DeleteMulti(ctx, pckx)
+		err1 = datastore.DeleteMulti(ctx, kpcx)
 		if err1 != nil {
 			return
 		}
-		err1 = datastore.DeleteMulti(ctx, ckx)
+		err1 = datastore.DeleteMulti(ctx, kcx)
 		if err1 != nil {
 			return
 		}

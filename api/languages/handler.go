@@ -15,14 +15,15 @@ import (
 // Handler posts a language and returns limited languages from the begining of the kind.
 // Also, deletes languages by given ids as encoded keys
 // and gets languages from the begining of the given cursor..
+// ADD AUTHORISATION CONTROL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 func Handler(s *session.Session) {
 	switch s.R.Method {
 	case "POST":
 		langCode := s.R.FormValue("ID")
-		name := s.R.FormValue("name")
+		contentID := s.R.FormValue("contentID")
 		lang := &language.Language{
-			ID:   langCode,
-			Name: name,
+			ID:        langCode,
+			ContentID: contentID,
 		}
 		mpf, hdr, err := s.R.FormFile("file")
 		if err != nil {
@@ -82,6 +83,10 @@ func Handler(s *session.Session) {
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if len(langs) == 0 {
+			s.W.WriteHeader(http.StatusNoContent)
 			return
 		}
 		rb := new(api.ResponseBody)

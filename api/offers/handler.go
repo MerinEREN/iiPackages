@@ -1,16 +1,16 @@
 /*
-Package servicePack "Every package should have a package comment, a block comment preceding the package clause.
+Package offers "Every package should have a package comment, a block comment preceding the package clause.
 For multi-file packages, the package comment only needs to be present in one file, and any
 one will do. The package comment should introduce the package and provide information
 relevant to the package as a whole. It will appear first on the godoc page and should set
 up the detailed documentation that follows."
 */
-package servicePack
+package offers
 
 import (
 	"encoding/json"
 	"github.com/MerinEREN/iiPackages/api"
-	"github.com/MerinEREN/iiPackages/datastore/servicePack"
+	"github.com/MerinEREN/iiPackages/datastore/offer"
 	"github.com/MerinEREN/iiPackages/datastore/user"
 	"github.com/MerinEREN/iiPackages/datastore/userTag"
 	"github.com/MerinEREN/iiPackages/session"
@@ -20,8 +20,8 @@ import (
 	"net/http"
 )
 
-// Handler returns account servicePacks via account ID if provided.
-// Otherwise if the user is "admin" returns servicePacks via account tag keys, else
+// Handler returns account offers via account ID if provided.
+// Otherwise if the user is "admin" returns offers via account tag keys, else
 // returns only via user tag keys.
 // SAVE WITH ACCOUNT KEY AS THE PARENT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 func Handler(s *session.Session) {
@@ -33,7 +33,7 @@ func Handler(s *session.Session) {
 		return
 	}
 	rb := new(api.ResponseBody)
-	var sps servicePack.ServicePacks
+	var os offer.Offers
 	if accID != "" {
 		aKey, err := datastore.DecodeKey(accID)
 		if err != nil {
@@ -41,18 +41,18 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		sps, crsr, err = servicePack.GetViaParent(s.Ctx, crsr, aKey)
+		os, crsr, err = offer.GetViaParent(s.Ctx, crsr, aKey)
 		if err == datastore.Done {
-			if len(sps) == 0 {
+			if len(os) == 0 {
 				s.W.WriteHeader(http.StatusNoContent)
 				return
 			}
 		} else if err != nil {
-			log.Printf("Path: %s, Request: get service packs via parent key, Error: %v\n", s.R.URL.Path, err)
+			log.Printf("Path: %s, Request: get offers via parent key, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		rb.PrevPageURL = "/servicePacks?aID=" + accID + "&c=" + crsr.String()
+		rb.PrevPageURL = "/offers?aID=" + accID + "&c=" + crsr.String()
 	} else {
 		// For timeline
 		var userTagKeys []*datastore.Key
@@ -105,8 +105,9 @@ func Handler(s *session.Session) {
 				}
 			}
 		}
-		if u.IsAdmin() {
-			item, err = memcache.Get(s.Ctx, "accTagKeys")
+		isAdmin, err := u.IsAdmin(s.Ctx)
+		if isAdmin {
+			item, err := memcache.Get(s.Ctx, "accTagKeys")
 			if err == nil {
 				err = json.Unmarshal(item.Value, &accTagKeys)
 				if err != nil {
@@ -164,7 +165,7 @@ func Handler(s *session.Session) {
 				tagKeysQuery = accTagKeys
 			}
 		} else {
-			item, err := memcache.Get(s.Ctx, "userTagKeys")
+			item, err = memcache.Get(s.Ctx, "userTagKeys")
 			if err == nil {
 				err = json.Unmarshal(item.Value, &tagKeysQuery)
 				if err != nil {
@@ -203,50 +204,50 @@ func Handler(s *session.Session) {
 		}
 		switch drct {
 		case "next":
-			sps, crsr, err = servicePack.GetNewest(s.Ctx, crsr, tagKeysQuery)
+			os, crsr, err = offer.GetNewest(s.Ctx, crsr, tagKeysQuery)
 			if err == datastore.Done {
-				if len(sps) == 0 {
-					log.Printf("Path: %s, Request: get newer service packs, Error: %v\n", s.R.URL.Path, err)
+				if len(os) == 0 {
+					log.Printf("Path: %s, Request: get newer offers, Error: %v\n", s.R.URL.Path, err)
 					s.W.WriteHeader(http.StatusNoContent)
 					return
 				}
 			} else if err != nil {
-				log.Printf("Path: %s, Request: get newer service packs, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Request: get newer offers, Error: %v\n", s.R.URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			rb.NextPageURL = "/servicePacks?uID=" + s.R.FormValue("uID") + "&d=next&c=" + crsr.String()
+			rb.NextPageURL = "/offers?uID=" + s.R.FormValue("uID") + "&d=next&c=" + crsr.String()
 		case "prev":
-			sps, crsr, err = servicePack.GetOldest(s.Ctx, crsr, tagKeysQuery)
+			os, crsr, err = offer.GetOldest(s.Ctx, crsr, tagKeysQuery)
 			if err == datastore.Done {
-				if len(sps) == 0 {
+				if len(os) == 0 {
 					s.W.WriteHeader(http.StatusNoContent)
 					return
 				}
 			} else if err != nil {
-				log.Printf("Path: %s, Request: get older service packs, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Request: get older offers, Error: %v\n", s.R.URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			rb.PrevPageURL = "/servicePacks?uID=" + s.R.FormValue("uID") + "&d=prev&c=" + crsr.String()
+			rb.PrevPageURL = "/offers?uID=" + s.R.FormValue("uID") + "&d=prev&c=" + crsr.String()
 		default:
 			var crsrNew datastore.Cursor
 			var crsrOld datastore.Cursor
-			sps, crsrNew, crsrOld, err = servicePack.Get(s.Ctx, tagKeysQuery)
+			os, crsrNew, crsrOld, err = offer.Get(s.Ctx, tagKeysQuery)
 			if err == datastore.Done {
-				if len(sps) == 0 {
+				if len(os) == 0 {
 					s.W.WriteHeader(http.StatusNoContent)
 					return
 				}
 			} else if err != nil {
-				log.Printf("Path: %s, Request: get service packs, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Request: get offers, Error: %v\n", s.R.URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			rb.NextPageURL = "/servicePacks?uID=" + s.R.FormValue("uID") + "&d=next&c=" + crsrNew.String()
-			rb.PrevPageURL = "/servicePacks?uID=" + s.R.FormValue("uID") + "&d=prev&c=" + crsrOld.String()
+			rb.NextPageURL = "/offers?uID=" + s.R.FormValue("uID") + "&d=next&c=" + crsrNew.String()
+			rb.PrevPageURL = "/offers?uID=" + s.R.FormValue("uID") + "&d=prev&c=" + crsrOld.String()
 		}
 	}
-	rb.Result = sps
+	rb.Result = os
 	api.WriteResponseJSON(s, rb)
 }

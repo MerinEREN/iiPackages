@@ -6,6 +6,7 @@ package user
 import (
 	"errors"
 	"github.com/MerinEREN/iiPackages/datastore/account"
+	"github.com/MerinEREN/iiPackages/datastore/userRole"
 	"github.com/MerinEREN/iiPackages/session"
 	valid "github.com/asaskevich/govalidator"
 	"github.com/nu7hatch/gouuid"
@@ -23,33 +24,69 @@ var (
 	ErrPutUser         = errors.New("error while putting user into the datastore")
 )
 
-// IsAdmin "Exported functions should have a comment"
-func (u *User) IsAdmin() bool {
-	for _, r := range u.Roles {
-		if r == "admin" {
-			return true
+// IsAdmin gets user's role keys first. Than returns encoded content key from role key's
+// stringID and converts it to content key. And finaly, gets content's stringID from it
+// and compares.
+// Than returns a boolean and an error.
+func (u *User) IsAdmin(ctx context.Context) (bool, error) {
+	k, err := datastore.DecodeKey(u.ID)
+	if err != nil {
+		return false, err
+	}
+	krx, err := userRole.GetKeysUserOrRole(ctx, k)
+	if err != nil && err != datastore.Done {
+		return false, err
+	}
+	var encodedContentKey string
+	kc := new(datastore.Key)
+	for _, v := range krx {
+		encodedContentKey = v.StringID()
+		kc, err = datastore.DecodeKey(encodedContentKey)
+		if err != nil {
+			return false, err
+		}
+		if kc.StringID() == "admin" {
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
-// IsContentEditor "Exported functions should have a comment"
-func (u *User) IsContentEditor() bool {
-	for _, r := range u.Roles {
-		if r == "contentEditor" {
-			return true
+// IsContentEditor gets user's role keys first. Than returns encoded content key
+// from role key's stringID and converts it to content key.
+// And finaly, gets content's stringID from it and compares.
+// Than returns a boolean and an error.
+func (u *User) IsContentEditor(ctx context.Context) (bool, error) {
+	k, err := datastore.DecodeKey(u.ID)
+	if err != nil {
+		return false, err
+	}
+	krx, err := userRole.GetKeysUserOrRole(ctx, k)
+	if err != nil && err != datastore.Done {
+		return false, err
+	}
+	var encodedContentKey string
+	kc := new(datastore.Key)
+	for _, v := range krx {
+		encodedContentKey = v.StringID()
+		kc, err = datastore.DecodeKey(encodedContentKey)
+		if err != nil {
+			return false, err
+		}
+		if kc.StringID() == "contentEditor" {
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // CreateWithAccount creates an account and an user entities for the new user
 // in a transaction.
 // And returns account, user, user key and an error.
 func CreateWithAccount(s *session.Session) (acc *account.Account, u *User,
-	uKey *datastore.Key, err error) {
+	k *datastore.Key, err error) {
 	email := s.U.Email
-	// Email validation control not necessary actually.
+	// Email validation control not necessary for now.
 	if !valid.IsEmail(email) {
 		err = ErrInvalidEmail
 		return nil, nil, nil, err
@@ -59,7 +96,7 @@ func CreateWithAccount(s *session.Session) (acc *account.Account, u *User,
 		err = usr.InvalidPassword
 		return nil, nil, err
 	} */
-	// UUID is not necessary actually.
+	// UUID has no functionallity for now.
 	u4 := new(uuid.UUID)
 	if u4, err = uuid.NewV4(); err != nil {
 		return nil, nil, nil, err
@@ -69,25 +106,25 @@ func CreateWithAccount(s *session.Session) (acc *account.Account, u *User,
 		Registered:   time.Now(),
 		LastModified: time.Now(),
 	}
-	var roles []string
-	roles = append(roles, "admin")
-	k := datastore.NewKey(s.Ctx, "Account", UUID, 0, nil)
+	ka := datastore.NewKey(s.Ctx, "Account", UUID, 0, nil)
+	// USAGE "s" INSTEAD OF "ctx" INSIDE THE TRANSACTION IS WRONG !!!!!!!!!!!!!!!!!!!!!
 	err = datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
-		if k, err1 = datastore.Put(ctx, k, acc); err1 != nil {
+		if ka, err1 = datastore.Put(ctx, ka, acc); err1 != nil {
 			return
 		}
 		// DELETE THIS WHEN U STORE ONLY KEYS INTO MEMCACHE !!!!!!!!!!!!!!!!!!!!!!!
-		acc.ID = k.Encode()
-		u, uKey, err1 = New(s, email, roles, k)
+		acc.ID = ka.Encode()
+		u, k, err1 = New(s, email, ka)
 		// DELETE THIS WHEN U STORE ONLY KEYS INTO MEMCACHE !!!!!!!!!!!!!!!!!!!!!!!
-		u.ID = uKey.Encode()
+		u.ID = k.Encode()
 		return
 	}, nil)
 	return
 }
 
-// New creates a new user and returns it and its key if not exist or returns an error.
-func New(s *session.Session, email string, roles []string, pk *datastore.Key) (
+// New creates a new user and returns it and its key if not exist, or returns an error.
+// Also sets new user's default role as admin to "userRole" kind in a transaction.
+func New(s *session.Session, email string, pk *datastore.Key) (
 	u *User, k *datastore.Key, err error) {
 	var c int
 	c, err = datastore.NewQuery("User").Filter("Email =", email).Count(s.Ctx)
@@ -98,14 +135,26 @@ func New(s *session.Session, email string, roles []string, pk *datastore.Key) (
 	} else {
 		u = &User{
 			Email:        email,
-			Roles:        roles,
 			IsActive:     true,
 			Created:      time.Now(),
 			LastModified: time.Now(),
 			// Password:     GetHmac(password),
 		}
 		k = datastore.NewKey(s.Ctx, "User", email, 0, pk)
-		k, err = datastore.Put(s.Ctx, k, u)
+		kc := datastore.NewKey(s.Ctx, "Content", "admin", 0, nil)
+		kr := datastore.NewKey(s.Ctx, "Role", kc.Encode(), 0, nil)
+		ur := &userRole.UserRole{
+			RoleKey: kr,
+		}
+		kur := datastore.NewIncompleteKey(s.Ctx, "UserRole", k)
+		err = datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (
+			err1 error) {
+			if k, err1 = datastore.Put(ctx, k, u); err1 != nil {
+				return
+			}
+			err1 = userRole.Put(ctx, kur, ur)
+			return
+		}, nil)
 		u.ID = k.Encode()
 	}
 	return
@@ -204,20 +253,35 @@ func GetKeyViaEmail(s *session.Session) (k *datastore.Key, err error) {
 	return
 }
 
-/*
-Put updates an entity in the kind.
-*/
-func Put(s *session.Session, u *User) (*User, error) {
-	k, err := datastore.DecodeKey(u.ID)
-	if err != nil {
-		return nil, err
+// Put adds to or modifies an entity in the kind according to request method.
+func Put(s *session.Session, u *User, pk *datastore.Key) (*datastore.Key, *User, error) {
+	k := new(datastore.Key)
+	var err error
+	if s.R.Method == "POST" {
+		var c int
+		c, err = datastore.NewQuery("User").Filter("Email =", u.Email).Count(s.Ctx)
+		if err != nil {
+			return nil, nil, err
+		} else if c > 0 {
+			err = ErrEmailExist
+			return nil, nil, err
+		} else {
+			k = datastore.NewKey(s.Ctx, "User", u.Email, 0, pk)
+			u.ID = k.Encode()
+			u.Created = time.Now()
+		}
+	} else if s.R.Method == "PUT" {
+		k, err = datastore.DecodeKey(u.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		tempU := new(User)
+		if err = datastore.Get(s.Ctx, k, tempU); err != nil {
+			return nil, nil, err
+		}
+		u.Created = tempU.Created
 	}
-	tempU := new(User)
-	if err = datastore.Get(s.Ctx, k, tempU); err != nil {
-		return nil, err
-	}
-	u.Created = tempU.Created
 	u.LastModified = time.Now()
-	_, err = datastore.Put(s.Ctx, k, u)
-	return u, err
+	k, err = datastore.Put(s.Ctx, k, u)
+	return k, u, err
 }

@@ -73,7 +73,8 @@ func Handler(s *session.Session) {
 			}
 		}
 	}
-	if u.IsAdmin() {
+	isAdmin, err := u.IsAdmin(s.Ctx)
+	if isAdmin {
 		item, err := memcache.Get(s.Ctx, "accTagKeys")
 		if err == nil {
 			err = json.Unmarshal(item.Value, &accTagKeys)

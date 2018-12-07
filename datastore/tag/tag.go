@@ -26,24 +26,25 @@ GetMulti returns corresponding entities if keys provided.
 Otherwise returns limited entitities from the given cursor.
 If limit is nil default limit will be used.
 */
-func GetMulti(s *session.Session, kx interface{}) (Tags, error) {
+func GetMulti(ctx context.Context, kx interface{}) (Tags, error) {
 	ts := make(Tags)
 	if kx, ok := kx.([]*datastore.Key); ok {
 		tx := make([]*Tag, len(kx))
 		// RETURNED ENTITY LIMIT COULD BE A PROBLEM HERE !!!!!!!!!!!!!!!!!!!!!!!!!!
-		err := datastore.GetMulti(s.Ctx, kx, tx)
+		err := datastore.GetMulti(ctx, kx, tx)
 		if err != nil {
 			return nil, err
 		}
-		for i, v := range kx {
-			ts[v.Encode()] = tx[i]
+		for i, v := range tx {
+			v.ContentID = kx[i].StringID()
+			v.ID = kx[i].Encode()
+			ts[v.ID] = v
 		}
 		return ts, err
 	}
 	q := datastore.NewQuery("Tag").
-		Project("Name").
 		Order("-Created")
-	for it := q.Run(s.Ctx); ; {
+	for it := q.Run(ctx); ; {
 		t := new(Tag)
 		k, err := it.Next(t)
 		if err == datastore.Done {
@@ -51,28 +52,20 @@ func GetMulti(s *session.Session, kx interface{}) (Tags, error) {
 		}
 		if err != nil {
 			err = ErrFindTag
-			return nil, err
+			return ts, err
 		}
+		t.ContentID = k.StringID()
 		t.ID = k.Encode()
 		ts[t.ID] = t
 	}
 }
 
-/*
-Put "Inside a package, any comment immediately preceding a top-level declaration serves as a
-doc comment for that declaration. Every exported (capitalized) name in a program should
-have a doc comment.
-Doc comments work best as complete sentences, which allow a wide variety of automated
-presentations. The first sentence should be a one-sentence summary that starts with the
-name being declared."
-*/
-// Compile parses a regular expression and returns, if successful,
-// a Regexp that can be used to match against text.
-func Put(s *session.Session, t *Tag) (*Tag, error) {
-	k := datastore.NewIncompleteKey(s.Ctx, "Tag", nil)
+// Put puts and returns an entity, and also returns an error.
+func Put(ctx context.Context, t *Tag) (*Tag, error) {
+	k := datastore.NewKey(ctx, "Tag", t.ContentID, 0, nil)
 	var err error
 	t.Created = time.Now()
-	k, err = datastore.Put(s.Ctx, k, t)
+	k, err = datastore.Put(ctx, k, t)
 	t.ID = k.Encode()
 	return t, err
 }
@@ -82,12 +75,13 @@ func Put(s *session.Session, t *Tag) (*Tag, error) {
 func PutAndGetMulti(s *session.Session, t *Tag) (Tags, error) {
 	ts := make(Tags)
 	tNew := new(Tag)
+	// USAGE "s.Ctx" INSTEAD OF "ctx" INSIDE THE TRANSACTION IS WRONG !!!!!!!!!!!!!!!!!
 	err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
-		tNew, err1 = Put(s, t)
+		tNew, err1 = Put(s.Ctx, t)
 		if err1 != nil {
 			return
 		}
-		ts, err1 = GetMulti(s, nil)
+		ts, err1 = GetMulti(s.Ctx, nil)
 		return
 	}, nil)
 	ts[tNew.ID] = tNew
@@ -95,12 +89,12 @@ func PutAndGetMulti(s *session.Session, t *Tag) (Tags, error) {
 }
 
 // Delete removes the entity by the provided encoded entity key and returns an error.
-func Delete(s *session.Session, ek string) error {
+func Delete(ctx context.Context, ek string) error {
 	k, err := datastore.DecodeKey(ek)
 	if err != nil {
 		return err
 	}
-	return datastore.Delete(s.Ctx, k)
+	return datastore.Delete(ctx, k)
 }
 
 // DeleteMulti removes the entitys by the provided encoded entity key slice
