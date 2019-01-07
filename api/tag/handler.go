@@ -12,13 +12,13 @@ import (
 // Handler handles delete request to delete a tag by the given id as encoded datastore key.
 func Handler(s *session.Session) {
 	ID := strings.Split(s.R.URL.Path, "/")[2]
+	if ID == "" {
+		log.Printf("Path: %s, Error: no tag ID\n", s.R.URL.Path)
+		http.Error(s.W, "No tag ID", http.StatusBadRequest)
+		return
+	}
 	switch s.R.Method {
 	case "DELETE":
-		if ID == "" {
-			log.Printf("Path: %s, Error: no tag ID to delete\n", s.R.URL.Path)
-			http.Error(s.W, "No tag ID to delete", http.StatusBadRequest)
-			return
-		}
 		err := tag.Delete(s.Ctx, ID)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
@@ -26,5 +26,7 @@ func Handler(s *session.Session) {
 			return
 		}
 		s.W.WriteHeader(http.StatusNoContent)
+	default:
+		// Handles "PUT" requests
 	}
 }

@@ -5,7 +5,7 @@ import (
 )
 
 // UserRole datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// User key is the parent key.
+// Encoded role key is key's stringID and user key is the parent key.
 type UserRole struct {
 	RoleKey *datastore.Key
 }

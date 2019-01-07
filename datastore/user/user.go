@@ -7,6 +7,7 @@ import (
 	"errors"
 	"github.com/MerinEREN/iiPackages/datastore/account"
 	"github.com/MerinEREN/iiPackages/datastore/userRole"
+	"github.com/MerinEREN/iiPackages/datastore/userTag"
 	"github.com/MerinEREN/iiPackages/session"
 	valid "github.com/asaskevich/govalidator"
 	"github.com/nu7hatch/gouuid"
@@ -135,7 +136,6 @@ func New(s *session.Session, email string, pk *datastore.Key) (
 	} else {
 		u = &User{
 			Email:        email,
-			IsActive:     true,
 			Created:      time.Now(),
 			LastModified: time.Now(),
 			// Password:     GetHmac(password),
@@ -146,7 +146,7 @@ func New(s *session.Session, email string, pk *datastore.Key) (
 		ur := &userRole.UserRole{
 			RoleKey: kr,
 		}
-		kur := datastore.NewIncompleteKey(s.Ctx, "UserRole", k)
+		kur := datastore.NewKey(s.Ctx, "UserRole", kr.Encode(), 0, k)
 		err = datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (
 			err1 error) {
 			if k, err1 = datastore.Put(ctx, k, u); err1 != nil {
@@ -187,34 +187,21 @@ func GetUsersKeysViaParent(ctx context.Context, pk *datastore.Key) ([]*datastore
 	}
 }
 
-// GetProjected returns limited entities from the given cursor
-// with thumbnail enough properties via account key, the updated cursor and an error.
-// If limit is nil default limit will be used.
-func GetProjected(ctx context.Context, pk *datastore.Key, crsr datastore.Cursor,
-	limit interface{}) (Users, datastore.Cursor, error) {
+// GetProjected returns thumbnail enough properties via account key and an error.
+func GetProjected(ctx context.Context, pk *datastore.Key) (Users, error) {
 	us := make(Users)
 	q := datastore.NewQuery("User").
 		Ancestor(pk).
 		Order("-Created").
-		Project("Name.First", "Name.Last", "Email", "Link")
-	if crsr.String() != "" {
-		q = q.Start(crsr)
-	}
-	if limit != nil {
-		l := limit.(int)
-		q = q.Limit(l)
-	} else {
-		q = q.Limit(10)
-	}
+		Project("Name.First", "Name.Last", "Email", "Link", "Status")
 	for it := q.Run(ctx); ; {
 		u := new(User)
 		k, err := it.Next(u)
 		if err == datastore.Done {
-			crsr, err = it.Cursor()
-			return us, crsr, err
+			return us, err
 		}
 		if err != nil {
-			return nil, crsr, err
+			return nil, err
 		}
 		u.ID = k.Encode()
 		us[u.ID] = u
@@ -253,27 +240,29 @@ func GetKeyViaEmail(s *session.Session) (k *datastore.Key, err error) {
 	return
 }
 
-// Put adds to or modifies an entity in the kind according to request method.
+// Put adds to or modifies an entity in the kind according to existance.
 func Put(s *session.Session, u *User, pk *datastore.Key) (*datastore.Key, *User, error) {
 	k := new(datastore.Key)
-	var err error
-	if s.R.Method == "POST" {
-		var c int
-		c, err = datastore.NewQuery("User").Filter("Email =", u.Email).Count(s.Ctx)
-		if err != nil {
-			return nil, nil, err
-		} else if c > 0 {
-			err = ErrEmailExist
-			return nil, nil, err
-		} else {
+	c, err := datastore.NewQuery("User").Filter("Email =", u.Email).Count(s.Ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if c == 0 {
+		// Adding an entity first time.
+		k = datastore.NewKey(s.Ctx, "User", u.Email, 0, pk)
+		u.ID = k.Encode()
+		u.Created = time.Now()
+	} else {
+		if s.R.Method == "POST" {
+			// Adding a removed entity again.
 			k = datastore.NewKey(s.Ctx, "User", u.Email, 0, pk)
 			u.ID = k.Encode()
-			u.Created = time.Now()
-		}
-	} else if s.R.Method == "PUT" {
-		k, err = datastore.DecodeKey(u.ID)
-		if err != nil {
-			return nil, nil, err
+		} else {
+			// Updating an egzisting entity.
+			k, err = datastore.DecodeKey(u.ID)
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 		tempU := new(User)
 		if err = datastore.Get(s.Ctx, k, tempU); err != nil {
@@ -284,4 +273,50 @@ func Put(s *session.Session, u *User, pk *datastore.Key) (*datastore.Key, *User,
 	u.LastModified = time.Now()
 	k, err = datastore.Put(s.Ctx, k, u)
 	return k, u, err
+}
+
+// UpdateStatus set's user status to given value "v" by given encoded user key "ek"
+// and returns an error.
+func UpdateStatus(ctx context.Context, ek, v string) error {
+	k, err := datastore.DecodeKey(ek)
+	if err != nil {
+		return err
+	}
+	u := new(User)
+	if err = datastore.Get(ctx, k, u); err != nil {
+		return err
+	}
+	u.Status = v
+	_, err = datastore.Put(ctx, k, u)
+	return err
+}
+
+// Delete sets user's status to "delete" and removes user's roles and tags in a transaction
+// and returns an error.
+func Delete(ctx context.Context, ek string) error {
+	k, err := datastore.DecodeKey(ek)
+	if err != nil {
+		return err
+	}
+	kurx, err := userRole.GetKeys(ctx, k)
+	if err != datastore.Done {
+		return err
+	}
+	kutx, err := userTag.GetKeys(ctx, k)
+	if err != datastore.Done {
+		return err
+	}
+	opts := new(datastore.TransactionOptions)
+	opts.XG = true
+	err = datastore.RunInTransaction(ctx, func(ctx context.Context) (err1 error) {
+		if err1 = datastore.DeleteMulti(ctx, kurx); err1 != nil {
+			return
+		}
+		if err1 = datastore.DeleteMulti(ctx, kutx); err1 != nil {
+			return
+		}
+		err1 = UpdateStatus(ctx, ek, "deleted")
+		return
+	}, opts)
+	return err
 }

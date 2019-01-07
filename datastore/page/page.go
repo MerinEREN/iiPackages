@@ -139,19 +139,19 @@ func Get(s *session.Session, keyEncoded string) (Pages, error) {
 // by the provided encoded key
 // and if a content only been included in that page also gonna be removed.
 // As a return returns an error.
-func Delete(s *session.Session, keyEncoded string) error {
+func Delete(ctx context.Context, keyEncoded string) error {
 	k, err := datastore.DecodeKey(keyEncoded)
 	if err != nil {
 		return err
 	}
-	kpcx, kcx, err := pageContent.GetKeysWithPageOrContentKeys(s.Ctx, k)
+	kpcx, kcx, err := pageContent.GetKeysWithPageOrContentKeys(ctx, k)
 	if err != datastore.Done {
 		return err
 	}
 	var count int
 	var kcx2 []*datastore.Key
 	for _, v := range kcx {
-		count, err = pageContent.GetCount(s.Ctx, v)
+		count, err = pageContent.GetCount(ctx, v)
 		if err != nil {
 			return err
 		}
@@ -161,7 +161,7 @@ func Delete(s *session.Session, keyEncoded string) error {
 	}
 	opts := new(datastore.TransactionOptions)
 	opts.XG = true
-	return datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
+	return datastore.RunInTransaction(ctx, func(ctx context.Context) (err1 error) {
 		err1 = datastore.DeleteMulti(ctx, kpcx)
 		if err1 != nil {
 			return
@@ -179,7 +179,7 @@ func Delete(s *session.Session, keyEncoded string) error {
 // by the provided encoded keys.
 // And if a content only been included in one of the deleted pages also gonna be removed.
 // As a return returns an error.
-func DeleteMulti(s *session.Session, ekx []string) error {
+func DeleteMulti(ctx context.Context, ekx []string) error {
 	var kx []*datastore.Key
 	var kpcx []*datastore.Key
 	var kcx []*datastore.Key
@@ -192,7 +192,7 @@ func DeleteMulti(s *session.Session, ekx []string) error {
 			return err
 		}
 		kx = append(kx, k)
-		kpcx2, kcx2, err = pageContent.GetKeysWithPageOrContentKeys(s.Ctx, k)
+		kpcx2, kcx2, err = pageContent.GetKeysWithPageOrContentKeys(ctx, k)
 		if err != datastore.Done {
 			return err
 		}
@@ -200,7 +200,7 @@ func DeleteMulti(s *session.Session, ekx []string) error {
 			kpcx = append(kpcx, v2)
 		}
 		for _, v3 := range kcx2 {
-			count, err = pageContent.GetCount(s.Ctx, v3)
+			count, err = pageContent.GetCount(ctx, v3)
 			if err != nil {
 				return err
 			}
@@ -211,7 +211,7 @@ func DeleteMulti(s *session.Session, ekx []string) error {
 	}
 	opts := new(datastore.TransactionOptions)
 	opts.XG = true
-	return datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
+	return datastore.RunInTransaction(ctx, func(ctx context.Context) (err1 error) {
 		err1 = datastore.DeleteMulti(ctx, kpcx)
 		if err1 != nil {
 			return

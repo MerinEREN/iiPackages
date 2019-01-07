@@ -5,6 +5,8 @@ package role
 
 import (
 	"errors"
+	"github.com/MerinEREN/iiPackages/datastore/roleTypeRole"
+	"github.com/MerinEREN/iiPackages/datastore/userRole"
 	"github.com/MerinEREN/iiPackages/session"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
@@ -83,21 +85,35 @@ func PutAndGetMulti(s *session.Session, r *Role) (Roles, error) {
 	return rs, err
 }
 
-// Delete removes the entity by the provided encoded entity key and returns an error.
-func Delete(ctx context.Context, k *datastore.Key) error {
-	return datastore.Delete(ctx, k)
-}
-
-// DeleteMulti removes the entitys by the provided encoded entity key slice
+// Delete removes the entity and all the corresponding "roleTypeRole" and "userRole"
+// entities in a transaction by the provided encoded entity key
 // and returns an error.
-/* func DeleteMulti(s *session.Session, ekx []string) error {
-	var kx []*datastore.Key
-	for _, v := range ekx {
-		k, err := datastore.DecodeKey(v)
-		if err != nil {
-			return err
-		}
-		kx = append(kx, k)
+func Delete(ctx context.Context, ek string) error {
+	k, err := datastore.DecodeKey(ek)
+	if err != nil {
+		return err
 	}
-	return datastore.DeleteMulti(s.Ctx, kx)
-}*/
+	krtrx, err := roleTypeRole.GetKeys(ctx, k)
+	if err != nil {
+		return err
+	}
+	kurx, err := userRole.GetKeysUserOrRole(ctx, k)
+	if err != nil {
+		return err
+	}
+	opts := new(datastore.TransactionOptions)
+	opts.XG = true
+	err = datastore.RunInTransaction(ctx, func(ctx context.Context) (err1 error) {
+		err1 = roleTypeRole.DeleteMulti(ctx, krtrx)
+		if err1 != nil {
+			return
+		}
+		err1 = datastore.DeleteMulti(ctx, kurx)
+		if err1 != nil {
+			return
+		}
+		err1 = datastore.Delete(ctx, k)
+		return
+	}, opts)
+	return err
+}

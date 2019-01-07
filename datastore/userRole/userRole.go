@@ -69,6 +69,31 @@ func Delete(ctx context.Context, k *datastore.Key) error {
 	return datastore.Delete(ctx, k)
 }
 
+// GetKeys returns the userRole keys by user or role key and an error.
+func GetKeys(ctx context.Context, key *datastore.Key) ([]*datastore.Key, error) {
+	var kx []*datastore.Key
+	q := datastore.NewQuery("UserRole")
+	kind := key.Kind()
+	switch kind {
+	case "Role":
+		q = q.Filter("RoleKey =", key)
+	default:
+		// For "User" kind
+		q = q.Ancestor(key)
+	}
+	q = q.KeysOnly()
+	for it := q.Run(ctx); ; {
+		k, err := it.Next(nil)
+		if err == datastore.Done {
+			return kx, err
+		}
+		if err != nil {
+			return nil, err
+		}
+		kx = append(kx, k)
+	}
+}
+
 // GetCount returns the count of the entities that has the provided key and an error.
 /* func GetCount(s *session.Session, k *datastore.Key) (c int, err error) {
 	q := datastore.NewQuery("UserRole")

@@ -178,7 +178,7 @@ func PutMultiAndGetMulti(s *session.Session, crsr datastore.Cursor, cx []*Conten
 // DeleteMulti removes the entities
 // and all the corresponding pageContent entities by the provided encoded keys
 // also returns an error.
-func DeleteMulti(s *session.Session, ekx []string) error {
+func DeleteMulti(ctx context.Context, ekx []string) error {
 	var kx []*datastore.Key
 	var kpcx []*datastore.Key
 	for _, v := range ekx {
@@ -187,7 +187,7 @@ func DeleteMulti(s *session.Session, ekx []string) error {
 			return err
 		}
 		kx = append(kx, k)
-		kpcx2, err := pageContent.GetKeysOnly(s.Ctx, k)
+		kpcx2, err := pageContent.GetKeysOnly(ctx, k)
 		if err != datastore.Done {
 			return err
 		}
@@ -197,7 +197,7 @@ func DeleteMulti(s *session.Session, ekx []string) error {
 	}
 	opts := new(datastore.TransactionOptions)
 	opts.XG = true
-	return datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
+	return datastore.RunInTransaction(ctx, func(ctx context.Context) (err1 error) {
 		err1 = datastore.DeleteMulti(ctx, kpcx)
 		if err1 != nil {
 			return

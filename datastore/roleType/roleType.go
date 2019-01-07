@@ -9,6 +9,7 @@ up the detailed documentation that follows.
 package roleType
 
 import (
+	"github.com/MerinEREN/iiPackages/datastore/roleTypeRole"
 	"github.com/MerinEREN/iiPackages/session"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
@@ -78,8 +79,22 @@ func PutAndGetMulti(s *session.Session, rt *RoleType) (RoleTypes, error) {
 	return rts, err
 }
 
-// Delete removes the entity by the provided stringID of a key and returns an error.
+// Delete removes the entity and all the corresponding "roleTypeRole" entities
+// in a transaction by the provided stringID of a key
+// and returns an error.
 func Delete(ctx context.Context, ID string) error {
 	k := datastore.NewKey(ctx, "RoleType", ID, 0, nil)
-	return datastore.Delete(ctx, k)
+	krtrx, err := roleTypeRole.GetKeys(ctx, k)
+	if err != nil {
+		return err
+	}
+	err = datastore.RunInTransaction(ctx, func(ctx context.Context) (err1 error) {
+		err1 = roleTypeRole.DeleteMulti(ctx, krtrx)
+		if err1 != nil {
+			return
+		}
+		err1 = datastore.Delete(ctx, k)
+		return
+	}, nil)
+	return err
 }

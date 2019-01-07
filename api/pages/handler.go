@@ -82,7 +82,7 @@ func Handler(s *session.Session) {
 			http.Error(s.W, "no key", http.StatusBadRequest)
 			return
 		}
-		err := page.DeleteMulti(s, ekx)
+		err := page.DeleteMulti(s.Ctx, ekx)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)

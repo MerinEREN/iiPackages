@@ -56,7 +56,7 @@ func Handler(s *session.Session) {
 		var kx []*datastore.Key
 		var utx userTag.UserTags
 		for _, v := range tIDx {
-			k := datastore.NewIncompleteKey(s.Ctx, "UserTag", uKey)
+			k := datastore.NewKey(s.Ctx, "UserTag", v, 0, uKey)
 			kx = append(kx, k)
 			tKey, err := datastore.DecodeKey(v)
 			if err != nil {

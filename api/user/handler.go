@@ -1,4 +1,4 @@
-// Package user returns an user.
+// Package user deletes, updates and returns an user.
 package user
 
 import (
@@ -15,22 +15,23 @@ import (
 	"strings"
 )
 
-// Handler returns user via user ID which is an encoded key if provided
-// Otherwise returns logged user.
+// Handler deletes, updates and returns user via user ID which is an encoded key
+// if provided, otherwise returns logged user.
 func Handler(s *session.Session) {
+	rb := new(api.ResponseBody)
 	ID := strings.Split(s.R.URL.Path, "/")[2]
+	if ID == "" && s.R.Method != "GET" {
+		log.Printf("Path: %s, Error: no user ID\n", s.R.URL.Path)
+		http.Error(s.W, "No user ID", http.StatusBadRequest)
+		return
+	}
+	uLogged := new(user.User)
 	u := new(user.User)
-	uKey := new(datastore.Key)
+	k := new(datastore.Key)
 	var err error
-	if ID != "" {
-		uKey, err = datastore.DecodeKey(ID)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!
-			http.Error(s.W, err.Error(), http.StatusBadRequest)
-			return
-		}
-		u, err = user.Get(s.Ctx, uKey)
+	switch s.R.Method {
+	case "DELETE":
+		err = user.Delete(s.Ctx, ID)
 		if err == datastore.ErrNoSuchEntity {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!
@@ -42,65 +43,134 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	} else {
-		// Return logged user.
-		item, err := memcache.Get(s.Ctx, "u")
-		if err == nil {
-			err = json.Unmarshal(item.Value, u)
+		s.W.WriteHeader(http.StatusNoContent)
+	case "PUT":
+	default:
+		if ID != "" {
+			k, err = datastore.DecodeKey(ID)
 			if err != nil {
 				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!
+				http.Error(s.W, err.Error(), http.StatusBadRequest)
+				return
+			}
+			// Do not return logged user.
+			uLogged, err = Get(s)
+			if uLogged.Email == k.StringID() {
+				s.W.WriteHeader(http.StatusNoContent)
+				return
+			}
+			if err != nil {
+				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!!!!!!!!!
 				http.Error(s.W, err.Error(),
 					http.StatusInternalServerError)
 				return
 			}
-			uKey, err = datastore.DecodeKey(u.ID)
-			if err != nil {
+			u, err = user.Get(s.Ctx, k)
+			if err == datastore.ErrNoSuchEntity {
 				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!
+				http.Error(s.W, err.Error(), http.StatusNotFound)
+				return
+			} else if err != nil {
+				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!
 				http.Error(s.W, err.Error(),
 					http.StatusInternalServerError)
 				return
 			}
+			// Do not return deleted user.
+			if u.Status == "deleted" {
+				s.W.WriteHeader(http.StatusNoContent)
+				return
+			}
+			us := make(user.Users)
+			us[u.ID] = u
+			rb.Result = us
 		} else {
-			var bs []byte
-			item, err = memcache.Get(s.Ctx, "uKey")
+			// Return logged user.
+			item, err := memcache.Get(s.Ctx, "u")
 			if err == nil {
-				err = json.Unmarshal(item.Value, uKey)
+				err = json.Unmarshal(item.Value, u)
 				if err != nil {
-					log.Printf("Path: %s, Error: %v\n",
-						s.R.URL.Path, err)
+					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
+						err)
 					http.Error(s.W, err.Error(),
 						http.StatusInternalServerError)
 					return
 				}
-				u, err = user.Get(s.Ctx, uKey)
+				k, err = datastore.DecodeKey(u.ID)
 				if err != nil {
-					log.Printf("Path: %s, Error: %v\n",
-						s.R.URL.Path, err)
-					// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!
+					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
+						err)
 					http.Error(s.W, err.Error(),
 						http.StatusInternalServerError)
 					return
 				}
 			} else {
-				u, uKey, err = user.GetViaEmail(s)
-				if err == datastore.Done {
-					acc := new(account.Account)
-					acc, u, uKey, err = user.CreateWithAccount(s)
+				var bs []byte
+				item, err = memcache.Get(s.Ctx, "uKey")
+				if err == nil {
+					err = json.Unmarshal(item.Value, k)
 					if err != nil {
 						log.Printf("Path: %s, Error: %v\n",
 							s.R.URL.Path, err)
-						// ALSO LOG THIS WITH DATASTORE LOG
 						http.Error(s.W, err.Error(),
 							http.StatusInternalServerError)
 						return
 					}
-					bs, err = json.Marshal(acc)
+					u, err = user.Get(s.Ctx, k)
+					if err != nil {
+						log.Printf("Path: %s, Error: %v\n",
+							s.R.URL.Path, err)
+						// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!
+						http.Error(s.W, err.Error(),
+							http.StatusInternalServerError)
+						return
+					}
+				} else {
+					u, k, err = user.GetViaEmail(s)
+					if err == datastore.Done {
+						acc := new(account.Account)
+						acc, u, k, err = user.CreateWithAccount(s)
+						if err != nil {
+							log.Printf("Path: %s, Error: %v\n",
+								s.R.URL.Path, err)
+							// ALSO LOG THIS WITH DATASTORE LOG
+							http.Error(s.W, err.Error(),
+								http.StatusInternalServerError)
+							return
+						}
+						bs, err = json.Marshal(acc)
+						if err != nil {
+							log.Printf("Path: %s, Error: %v\n",
+								s.R.URL.Path, err)
+						}
+						item = &memcache.Item{
+							Key:   "acc",
+							Value: bs,
+						}
+						err = memcache.Add(s.Ctx, item)
+						if err != nil {
+							log.Printf("Path: %s, Error: %v\n",
+								s.R.URL.Path, err)
+						}
+					} else if err != nil {
+						log.Printf("Path: %s, Error: %v\n",
+							s.R.URL.Path, err)
+						// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!
+						http.Error(s.W, err.Error(),
+							http.StatusInternalServerError)
+						return
+					}
+					bs, err = json.Marshal(k)
 					if err != nil {
 						log.Printf("Path: %s, Error: %v\n",
 							s.R.URL.Path, err)
 					}
 					item = &memcache.Item{
-						Key:   "acc",
+						Key:   "uKey",
 						Value: bs,
 					}
 					err = memcache.Add(s.Ctx, item)
@@ -108,21 +178,14 @@ func Handler(s *session.Session) {
 						log.Printf("Path: %s, Error: %v\n",
 							s.R.URL.Path, err)
 					}
-				} else if err != nil {
-					log.Printf("Path: %s, Error: %v\n",
-						s.R.URL.Path, err)
-					// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!
-					http.Error(s.W, err.Error(),
-						http.StatusInternalServerError)
-					return
 				}
-				bs, err = json.Marshal(uKey)
+				bs, err = json.Marshal(u)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n",
 						s.R.URL.Path, err)
 				}
 				item = &memcache.Item{
-					Key:   "uKey",
+					Key:   "u",
 					Value: bs,
 				}
 				err = memcache.Add(s.Ctx, item)
@@ -131,30 +194,19 @@ func Handler(s *session.Session) {
 						s.R.URL.Path, err)
 				}
 			}
-			bs, err = json.Marshal(u)
+			if u.Status == "deleted" || u.Status == "suspended" {
+				s.W.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			// USELESS FOR NOW, store some session data if needed !!!!!
+			// If cookie present does nothing.
+			// So does not necessary to check.
+			err = cookie.Set(s, "session", s.U.Email)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n",
-					s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			}
-			item = &memcache.Item{
-				Key:   "u",
-				Value: bs,
-			}
-			err = memcache.Add(s.Ctx, item)
-			if err != nil {
-				log.Printf("Path: %s, Error: %v\n",
-					s.R.URL.Path, err)
-			}
+			rb.Result = u
 		}
-		// USELESS FOR NOW, store some session data if needed !!!!!
-		// If cookie present does nothing.
-		// So does not necessary to check.
-		err = cookie.Set(s, "session", s.U.Email)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-		}
+		api.WriteResponseJSON(s, rb)
 	}
-	rb := new(api.ResponseBody)
-	rb.Result = u
-	api.WriteResponseJSON(s, rb)
 }

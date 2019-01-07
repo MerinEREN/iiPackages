@@ -13,6 +13,7 @@ a comment can often be perfunctory.
 
 // User account key is Ancestor
 // "Type" values are inHouse and customer for now.
+// "Status" could be "deleted", "suspended", "busy"...
 type User struct {
 	ID           string       `datastore:"-"`
 	Email        string       `json:"email"`
@@ -24,8 +25,8 @@ type User struct {
 	BirthDate    time.Time    `datastore:",noindex" json:"birthDate"`
 	Created      time.Time    `json:"created"`
 	LastModified time.Time    `datastore:",noindex" json:"lastModified"`
-	IsActive     bool         `json:"isactive"`
 	Phones       phone.Phones `datastore:"-" json:"phones"`
+	// IsActive     bool         `json:"isactive"`
 	// Password string `json:"password"`
 	// Online, offline, frozen
 	// User could be deactivated by superiors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

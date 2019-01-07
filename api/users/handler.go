@@ -1,6 +1,6 @@
 /*
-Package users returns only non adimin users of an account and saves user user roles
-and user tags.
+Package users returns non logged and non deleted users of an account and saves an user
+with it's user roles and user tags.
 */
 package users
 
@@ -19,12 +19,10 @@ import (
 	"strings"
 )
 
-// Handler returns the only non logged users of an account via account id
-// with limited properties to list in User Settings page.
-// Also puts a user into the User kind with account id as parent key
-// and logged user's type as type,
-// user roles into the UserRole kind and user tags into the UserTag kind
-// if the request method is POST.
+// Handler returns non logged and non deleted users of an account via account id.
+// Also if the request method is POST, puts an user into the User kind
+// with account id as parent key and logged user's type as type,
+// user roles into the UserRole kind and user tags into the UserTag kind.
 func Handler(s *session.Session) {
 	accID := s.R.FormValue("accID")
 	// CHECK THIS KONTROL BELOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -39,10 +37,14 @@ func Handler(s *session.Session) {
 		http.Error(s.W, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	var crsr datastore.Cursor
+	uLogged, err := userLogged.Get(s)
+	if err != nil {
+		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+		// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		http.Error(s.W, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	var us user.Users
-	var count interface{}
-	uLogged := new(user.User)
 	uNew := new(user.User)
 	switch s.R.Method {
 	case "POST":
@@ -55,17 +57,9 @@ func Handler(s *session.Session) {
 				http.StatusExpectationFailed)
 			return
 		}
-		uLogged, err = userLogged.Get(s)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
 		uNew = &user.User{
-			Email:    email,
-			IsActive: true,
-			Type:     uLogged.Type,
+			Email: email,
+			Type:  uLogged.Type,
 		}
 		roleIDsString := s.R.FormValue("roleIDs")
 		tagIDsString := s.R.FormValue("tagIDs")
@@ -102,7 +96,7 @@ func Handler(s *session.Session) {
 				}
 				ur.RoleKey = kr
 				urx = append(urx, ur)
-				kur := datastore.NewIncompleteKey(s.Ctx, "UserRole", ku)
+				kur := datastore.NewKey(s.Ctx, "UserRole", v, 0, ku)
 				kurx = append(kurx, kur)
 			}
 			if len(kurx) > 0 {
@@ -120,7 +114,7 @@ func Handler(s *session.Session) {
 					}
 					ut.TagKey = kt
 					utx = append(utx, ut)
-					kut := datastore.NewIncompleteKey(s.Ctx, "UserTag", ku)
+					kut := datastore.NewKey(s.Ctx, "UserTag", v, 0, ku)
 					kutx = append(kutx, kut)
 				}
 			}
@@ -137,53 +131,19 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		// Default limit +1 because of the admin user removal.
-		// Not 11 but the default value 10
-		// beacause of the newUser addition to the response data.
-		count = nil
 	default:
 		// Handles "GET" requests
-		crsr, err = datastore.DecodeCursor(s.R.FormValue("c"))
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		// if first pagination request.
-		if crsr.String() == "" {
-			// Default limit +1 because of the admin user removal.
-			count = 11
-		} else {
-			count = nil
-		}
 	}
-	// Get the entities from the begining by reseted cursor if the method is Post
-	// or get from the given cursor.
-	us, crsr, err = user.GetProjected(s.Ctx, accKey, crsr, count)
+	us, err = user.GetProjected(s.Ctx, accKey)
 	if err != nil && err != datastore.Done {
 		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 		http.Error(s.W, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Remove admin user from the users map.
-	/* var isAdmin bool
+	// Remove logged and deleted users from the users map.
 	for i, v := range us {
-		isAdmin, err = v.IsAdmin(s.Ctx)
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if isAdmin {
+		if uLogged.Email == v.Email || v.Status == "deleted" {
 			delete(us, i)
-			break
-		}
-	} */
-	// Remove logged user from the users map.
-	for i, v := range us {
-		if uLogged.Email == v.Email {
-			delete(us, i)
-			break
 		}
 	}
 	if len(us) == 0 {
@@ -193,10 +153,8 @@ func Handler(s *session.Session) {
 	if s.R.Method == "POST" {
 		us[uNew.ID] = uNew
 	}
-	// Returns only non admin users of the account.
 	rb := new(api.ResponseBody)
 	rb.Result = us
-	rb.PrevPageURL = "/users?c=" + crsr.String() + "&accID=" + accID
 	if s.R.Method == "POST" {
 		s.W.Header().Set("Content-Type", "application/json")
 		s.W.WriteHeader(http.StatusCreated)

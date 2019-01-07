@@ -54,7 +54,7 @@ func Handler(s *session.Session) {
 		rb.Result = ps
 		api.WriteResponseJSON(s, rb)
 	case "DELETE":
-		err := page.Delete(s, ID)
+		err := page.Delete(s.Ctx, ID)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
