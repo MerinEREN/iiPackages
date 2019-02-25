@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"github.com/MerinEREN/iiPackages/api"
 	"github.com/MerinEREN/iiPackages/datastore/demand"
-	"github.com/MerinEREN/iiPackages/datastore/offer"
+	// "github.com/MerinEREN/iiPackages/datastore/offer"
 	"github.com/MerinEREN/iiPackages/datastore/servicePack"
 	"github.com/MerinEREN/iiPackages/datastore/user"
 	"github.com/MerinEREN/iiPackages/datastore/userTag"
@@ -21,13 +21,16 @@ import (
 // First checks memcache for tag keys, if not present gets tag keys via request's uID which
 // is encoded key.
 func Handler(s *session.Session) {
-	encCrsrD := s.R.FormValue("cd")
-	encCrsrO := s.R.FormValue("co")
-	encCrsrSp := s.R.FormValue("csp")
+	err := s.R.ParseForm()
+	if err != nil {
+		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+		http.Error(s.W, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	var userTagKeys []*datastore.Key
 	var accTagKeys []*datastore.Key
 	var tagKeysQuery []*datastore.Key
-	uKey, err := datastore.DecodeKey(s.R.FormValue("uID"))
+	uKey, err := datastore.DecodeKey(s.R.Form.Get("uID"))
 	if err != nil {
 		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 		http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -85,7 +88,7 @@ func Handler(s *session.Session) {
 			}
 			tagKeysQuery = accTagKeys
 		} else {
-			uKeys, err := user.GetUsersKeysViaParent(s.Ctx, uKey.Parent())
+			uKeys, err := user.GetKeysByParentOrdered(s.Ctx, uKey.Parent())
 			if err == datastore.Done {
 				if len(uKeys) == 0 {
 					log.Printf("Path: %s, Request: get user keys via parent, Error: %v\n", s.R.URL.Path, err)
@@ -113,7 +116,15 @@ func Handler(s *session.Session) {
 					return
 				}
 				for _, v2 := range userTagKeys {
-					accTagKeys = append(accTagKeys, v2)
+					absent := true
+					for _, v3 := range accTagKeys {
+						if *v3 == *v2 {
+							absent = false
+						}
+					}
+					if absent {
+						accTagKeys = append(accTagKeys, v2)
+					}
 				}
 			}
 			bs, err := json.Marshal(accTagKeys)
@@ -168,40 +179,67 @@ func Handler(s *session.Session) {
 			tagKeysQuery = userTagKeys
 		}
 	}
-	rb := new(api.ResponseBody)
-	crsrD, err := datastore.DecodeCursor(encCrsrD)
-	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-		http.Error(s.W, err.Error(), http.StatusInternalServerError)
-		return
+	var crsrAsStringDx []string
+	if len(s.R.Form["cds"]) == 0 {
+		crsrAsStringDx = make([]string, len(tagKeysQuery))
+	} else {
+		crsrAsStringDx = s.R.Form["cds"]
 	}
-	crsrO, err := datastore.DecodeCursor(encCrsrO)
-	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-		http.Error(s.W, err.Error(), http.StatusInternalServerError)
-		return
+	/* var crsrAsStringOx []string
+	if len(s.R.Form["cos"]) == 0 {
+		crsrAsStringOx = make([]string, len(tagKeysQuery))
+	} else {
+		crsrAsStringOx = s.R.Form["cos"]
+	} */
+	var crsrAsStringSPx []string
+	if len(s.R.Form["csps"]) == 0 {
+		crsrAsStringSPx = make([]string, len(tagKeysQuery))
+	} else {
+		crsrAsStringSPx = s.R.Form["csps"]
 	}
-	crsrSp, err := datastore.DecodeCursor(encCrsrSp)
-	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-		http.Error(s.W, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	// var kdx, kox, kspx []*datastore.Key
+	var kdx, kspx []*datastore.Key
+	kds := make(map[string]*datastore.Key)
+	ksps := make(map[string]*datastore.Key)
 	// FIND A WAY TO MAKE QUERIES CONQURENTLY
-	var countT, countD, countO, countSp int
-	countD, err = demand.GetNewestCount(s.Ctx, crsrD, tagKeysQuery)
-	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+	for i, v := range tagKeysQuery {
+		kdx, err = demand.GetNewestKeysFilteredByTag(s.Ctx, crsrAsStringDx[i], v)
+		if err != nil && err != datastore.Done {
+			log.Printf("Path: %s, Request: get newest demands via tag key to count, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(),
+				http.StatusInternalServerError)
+			return
+		}
+		for _, v := range kdx {
+			kds[v.Encode()] = v
+		}
+		/* kox, err = offer.GetNewestKeysFilteredByTag(s.Ctx, crsrAsStringOx[i], v)
+		if err != nil && err != datastore.Done {
+			log.Printf("Path: %s, Request: get newest offers via tag key to count, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(),
+				http.StatusInternalServerError)
+			return
+		}
+		for _, v := range kox {
+			kos[v.Encode()] = v
+		} */
+		kspx, err = servicePack.GetNewestKeysFilteredByTag(s.Ctx, crsrAsStringSPx[i], v)
+		if err != nil && err != datastore.Done {
+			log.Printf("Path: %s, Request: get newest service packs via tag key to count, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(),
+				http.StatusInternalServerError)
+			return
+		}
+		for _, v := range kspx {
+			ksps[v.Encode()] = v
+		}
 	}
-	countO, err = offer.GetNewestCount(s.Ctx, crsrO, tagKeysQuery)
-	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+	rb := new(api.ResponseBody)
+	// rb.Result = len(kds) + len(kos) + len(ksps)
+	rb.Result = len(kds) + len(ksps)
+	if rb.Result == 0 {
+		s.W.WriteHeader(http.StatusNoContent)
+		return
 	}
-	countSp, err = servicePack.GetNewestCount(s.Ctx, crsrSp, tagKeysQuery)
-	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-	}
-	countT = countD + countO + countSp
-	rb.Result = countT
 	api.WriteResponseJSON(s, rb)
 }

@@ -171,10 +171,31 @@ func Get(ctx context.Context, k *datastore.Key) (*User, error) {
 	return u, err
 }
 
-// GetUsersKeysViaParent returns an error and users keys as a slice via account key.
-func GetUsersKeysViaParent(ctx context.Context, pk *datastore.Key) ([]*datastore.Key, error) {
+// GetKeysByParent returns an error and users keys as a slice via account key.
+func GetKeysByParent(ctx context.Context, pk *datastore.Key) ([]*datastore.Key, error) {
 	var kx []*datastore.Key
-	q := datastore.NewQuery("User").Ancestor(pk).KeysOnly()
+	q := datastore.NewQuery("User")
+	q = q.Ancestor(pk).
+		KeysOnly()
+	for it := q.Run(ctx); ; {
+		k, err := it.Next(nil)
+		if err == datastore.Done {
+			return kx, err
+		}
+		if err != nil {
+			return nil, err
+		}
+		kx = append(kx, k)
+	}
+}
+
+// GetKeysByParentOrdered returns an error and users keys as a slice via account key as descended order of the "Created" property.
+func GetKeysByParentOrdered(ctx context.Context, pk *datastore.Key) ([]*datastore.Key, error) {
+	var kx []*datastore.Key
+	q := datastore.NewQuery("User")
+	q = q.Ancestor(pk).
+		Order("-Created").
+		KeysOnly()
 	for it := q.Run(ctx); ; {
 		k, err := it.Next(nil)
 		if err == datastore.Done {
@@ -291,7 +312,7 @@ func UpdateStatus(ctx context.Context, ek, v string) error {
 	return err
 }
 
-// Delete sets user's status to "delete" and removes user's roles and tags in a transaction
+// Delete sets user's status to "deleted" and removes user's roles and tags in a transaction
 // and returns an error.
 func Delete(ctx context.Context, ek string) error {
 	k, err := datastore.DecodeKey(ek)

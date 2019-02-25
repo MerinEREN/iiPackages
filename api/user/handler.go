@@ -15,8 +15,8 @@ import (
 	"strings"
 )
 
-// Handler deletes, updates and returns user via user ID which is an encoded key
-// if provided, otherwise returns logged user.
+// Handler updates and returns user via user ID which is an encoded key if provided
+// otherwise returns logged user.
 func Handler(s *session.Session) {
 	rb := new(api.ResponseBody)
 	ID := strings.Split(s.R.URL.Path, "/")[2]

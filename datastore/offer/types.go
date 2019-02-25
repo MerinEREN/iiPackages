@@ -1,9 +1,7 @@
 package offer
 
 import (
-	"github.com/MerinEREN/iiPackages/datastore/price"
-	"github.com/MerinEREN/iiPackages/datastore/score"
-	"google.golang.org/appengine/datastore"
+	// "github.com/MerinEREN/iiPackages/datastore/price"
 	"time"
 )
 
@@ -12,20 +10,22 @@ import (
 // Status is available, accepted, notAccepted, changed, removed, successful,
 // unsuccessful.
 // backup (ONLY AUTHORIZED ACCOUNTS WHO ACCEPTED TO BE BACKUP) !!!!!!!!!!!!!!!!!!!!
-// User key is Ancestor
+// Demand key is the ancestor key.
+// AccountID is used to link the account.
 type Offer struct {
-	ID             string           `datastore:"-"`
-	Description    string           `datastore:",noindex" json:"description"`
+	ID           string    `datastore:"-"`
+	UserID       string    `json:"userID"`
+	AccountID    string    `datastore:"-" json:"accountID"`
+	Explanation  string    `datastore:",noindex" json:"explanation"`
+	Amount       float64   `datastore:",noindex" json:"amount"`
+	Created      time.Time `datastore:",noindex" json:"created"`
+	LastModified time.Time `json:"lastModified"`
+	Status       string    `json:"status"`
+	/* Price        price.Price `datastore:",noindex" json:"price"`
 	StartTime      time.Time        `datastore:",noindex" json:"startTime"`
 	Duration       string           `datastore:",noindex" json:"duration"`
-	Price          price.Price      `datastore:",noindex" json:"price"`
-	Created        time.Time        `datastore:",noindex" json:"created"`
-	LastModified   time.Time        `datastore:",noindex" json:"lastModified"`
-	Status         string           `datastore:",noindex" json:"status"`
 	CustomerReview string           `json:"customerreview"`
-	DemandID       *datastore.Key   `json:"demandID"`
-	TagIDs         []*datastore.Key `json:"tagIDs"`
-	Score          score.Score      `json:"score"`
+	Score          score.Score      `json:"score"` */
 }
 
 // Offers is map[string]*Offer.

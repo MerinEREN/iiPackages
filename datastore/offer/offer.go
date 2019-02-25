@@ -8,131 +8,102 @@ up the detailed documentation that follows."
 package offer
 
 import (
-	dstore "github.com/MerinEREN/iiPackages/datastore"
+	"github.com/MerinEREN/iiPackages/session"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
-	"log"
+	"time"
 )
 
-// Get returns limited entities from the start of the kind with given filters and order.
-// Add location filter here and use accounts addres info.
-func Get(ctx context.Context, uTagIDs []*datastore.Key) (
-	Offers, datastore.Cursor, datastore.Cursor, error) {
+// GetByParent returns limited entities via demand key as parent from the previous cursor
+// with given filters and order.
+func GetByParent(ctx context.Context, crsrAsString string, pk *datastore.Key) (
+	Offers, string, error) {
+	var err error
+	var crsr datastore.Cursor
 	os := make(Offers)
-	var cEnd datastore.Cursor
 	q := datastore.NewQuery("Offer")
-	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
-		Order("-LastModified").
-		Limit(10)
-	it := q.Run(ctx)
-	cStart, err := it.Cursor()
-	if err != nil {
-		log.Printf("Offer Get Cursor Error: %v\n", err)
-	}
-	for {
-		o := new(Offer)
-		k, err := it.Next(o)
-		if err == datastore.Done {
-			cEnd, err = it.Cursor()
-			return os, cStart, cEnd, err
-		}
+	q = q.
+		Ancestor(pk).
+		Filter("Status =", "active").
+		Order("-LastModified")
+	if crsrAsString != "" {
+		crsr, err = datastore.DecodeCursor(crsrAsString)
 		if err != nil {
-			return nil, cStart, cEnd, err
+			return nil, crsrAsString, err
 		}
-		o.ID = k.StringID()
-		os[o.ID] = o
+		q = q.Start(crsr)
 	}
-}
-
-// GetNewest returns all the results from the begining to the previous start point
-// with given filters and order.
-// Add location filter here and use accounts addres info.
-func GetNewest(ctx context.Context, cStart datastore.Cursor, uTagIDs []*datastore.Key) (
-	Offers, datastore.Cursor, error) {
-	os := make(Offers)
-	q := datastore.NewQuery("Offer")
-	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
-		Order("-LastModified").
-		End(cStart)
-	it := q.Run(ctx)
-	cStart, err := it.Cursor()
-	if err != nil {
-		log.Printf("Offer GetNewest Cursor Error: %v\n", err)
-	}
-	for {
-		o := new(Offer)
-		k, err := it.Next(o)
-		if err == datastore.Done {
-			return os, cStart, err
-		}
-		if err != nil {
-			return nil, cStart, err
-		}
-		o.ID = k.StringID()
-		os[o.ID] = o
-	}
-}
-
-// GetNewestCount returns the results count from the begining to the previous start point
-// with given filters and order.
-// Add location filter here and use accounts addres info.
-func GetNewestCount(ctx context.Context, cStart datastore.Cursor, uTagIDs []*datastore.Key) (
-	cnt int, err error) {
-	q := datastore.NewQuery("Offer")
-	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
-		Order("-LastModified").
-		End(cStart)
-	cnt, err = q.Count(ctx)
-	return
-}
-
-// GetOldest returns limited entities from the previous cEnd cursor
-// with given filters and order.
-// Add location filter here and use accounts addres info.
-func GetOldest(ctx context.Context, cEnd datastore.Cursor, uTagIDs []*datastore.Key) (
-	Offers, datastore.Cursor, error) {
-	os := make(Offers)
-	q := datastore.NewQuery("Offer")
-	q = dstore.FilterMulti(q, "TagIDs =", uTagIDs).
-		Order("-LastModified").
-		Start(cEnd).
-		Limit(10)
-	for it := q.Run(ctx); ; {
-		o := new(Offer)
-		k, err := it.Next(o)
-		if err == datastore.Done {
-			cEnd, err = it.Cursor()
-			return os, cEnd, err
-		}
-		if err != nil {
-			return nil, cEnd, err
-		}
-		o.ID = k.StringID()
-		os[o.ID] = o
-	}
-}
-
-// GetViaParent returns limited entities from the previous cursor
-// with given filters and order.
-func GetViaParent(ctx context.Context, crsr datastore.Cursor, pk *datastore.Key) (
-	Offers, datastore.Cursor, error) {
-	os := make(Offers)
-	q := datastore.NewQuery("Offer")
-	q = q.Ancestor(pk).
-		Order("-LastModified").
-		Start(crsr).
-		Limit(10)
+	q = q.Limit(10)
 	for it := q.Run(ctx); ; {
 		o := new(Offer)
 		k, err := it.Next(o)
 		if err == datastore.Done {
 			crsr, err = it.Cursor()
-			return os, crsr, err
+			return os, crsr.String(), err
 		}
 		if err != nil {
-			return nil, crsr, err
+			return nil, crsrAsString, err
+		}
+		o.ID = k.Encode()
+		ku, err := datastore.DecodeKey(o.UserID)
+		if err != nil {
+			return nil, crsrAsString, err
+		}
+		o.AccountID = ku.Parent().Encode()
+		os[o.ID] = o
+	}
+}
+
+// GetByUserID returns limited entities filtered by encoded user key as UserID
+// from the previous cursor in an order.
+// Also returns an updated cursor as string and the error.
+func GetByUserID(ctx context.Context, crsrAsString, uID string) (
+	Offers, string, error) {
+	var err error
+	var crsr datastore.Cursor
+	os := make(Offers)
+	q := datastore.NewQuery("Offer")
+	q = q.
+		Filter("UserID =", uID).
+		Order("-LastModified")
+	if crsrAsString != "" {
+		crsr, err = datastore.DecodeCursor(crsrAsString)
+		if err != nil {
+			return nil, crsrAsString, err
+		}
+		q = q.Start(crsr)
+	}
+	q = q.Limit(10)
+	for it := q.Run(ctx); ; {
+		o := new(Offer)
+		k, err := it.Next(o)
+		if err == datastore.Done {
+			crsr, err = it.Cursor()
+			return os, crsr.String(), err
+		}
+		if err != nil {
+			return nil, crsrAsString, err
 		}
 		o.ID = k.Encode()
 		os[o.ID] = o
 	}
+}
+
+// Put adds to or modifies an entity in the kind according to request method
+// and returns the entity and an error.
+func Put(s *session.Session, o *Offer, k *datastore.Key) (*Offer, error) {
+	var err error
+	if s.R.Method == "POST" {
+		o.Created = time.Now()
+	} else {
+		// Updating an egzisting entity.
+		tempO := new(Offer)
+		if err = datastore.Get(s.Ctx, k, tempO); err != nil {
+			return nil, err
+		}
+		o.Created = tempO.Created
+	}
+	o.LastModified = time.Now()
+	_, err = datastore.Put(s.Ctx, k, o)
+	return o, err
 }

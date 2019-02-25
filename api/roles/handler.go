@@ -11,7 +11,6 @@ import (
 	"google.golang.org/appengine/datastore"
 	"log"
 	"net/http"
-	"strings"
 )
 
 // Handler posts a role and returns all the roles from the begining of the kind
@@ -54,20 +53,16 @@ func Handler(s *session.Session) {
 	} */
 	switch s.R.Method {
 	case "POST":
-		contentID := s.R.FormValue("contentID")
+		// https://stackoverflow.com/questions/15202448/go-formfile-for-multiple-files
+		err := s.R.ParseMultipartForm(32 << 20) // 32MB is the default used by FormFile.
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		contentID := s.R.MultipartForm.Value["contentID"][0]
 		r := &role.Role{
 			ContentID: contentID,
-		}
-		roleTypesString := s.R.FormValue("types")
-		roleTypes := strings.Split(roleTypesString, ",")
-		for _, v := range roleTypes {
-			if v == "" {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
-					"Enpty roleType value or no roleTypes")
-				http.Error(s.W, "Enpty roleType value or no roleTypes",
-					http.StatusBadRequest)
-				return
-			}
 		}
 		kr := datastore.NewKey(s.Ctx, "Role", r.ContentID, 0, nil)
 		rtr := &roleTypeRole.RoleTypeRole{
@@ -75,7 +70,9 @@ func Handler(s *session.Session) {
 		}
 		var krtrx []*datastore.Key
 		var rtrx roleTypeRole.RoleTypeRoles
+		roleTypes := s.R.MultipartForm.Value["types"]
 		for _, v := range roleTypes {
+			log.Printf("\nRole is: %v", v)
 			krt := datastore.NewKey(s.Ctx, "RoleType", v, 0, nil)
 			krtr := datastore.NewIncompleteKey(s.Ctx, "RoleTypeRole", krt)
 			krtrx = append(krtrx, krtr)
@@ -88,7 +85,7 @@ func Handler(s *session.Session) {
 		// Reset the cursor and get the entities from the begining.
 		var crsr datastore.Cursor
 		// USAGE "s" INSTEAD OF "ctx" INSIDE THE TRANSACTION IS WRONG !!!!!!!!!!!!!
-		err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (
+		err = datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (
 			err1 error) {
 			rs, err1 = role.PutAndGetMulti(s, r)
 			if err1 != nil && err1 != datastore.Done {

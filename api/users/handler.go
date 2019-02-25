@@ -16,7 +16,6 @@ import (
 	"google.golang.org/appengine/datastore"
 	"log"
 	"net/http"
-	"strings"
 )
 
 // Handler returns non logged and non deleted users of an account via account id.
@@ -24,7 +23,19 @@ import (
 // with account id as parent key and logged user's type as type,
 // user roles into the UserRole kind and user tags into the UserTag kind.
 func Handler(s *session.Session) {
-	accID := s.R.FormValue("accID")
+	var accID string
+	if s.R.Header.Get("content-type") == "multipart/form-data" {
+		// https://stackoverflow.com/questions/15202448/go-formfile-for-multiple-files
+		err := s.R.ParseMultipartForm(32 << 20) // 32MB is the default used by FormFile.
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		accID = s.R.Form.Get("accID")
+	} else {
+		accID = s.R.FormValue("accID")
+	}
 	// CHECK THIS KONTROL BELOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	if accID == "" {
 		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, "No account ID")
@@ -48,7 +59,7 @@ func Handler(s *session.Session) {
 	uNew := new(user.User)
 	switch s.R.Method {
 	case "POST":
-		email := s.R.FormValue("email")
+		email := s.R.MultipartForm.Value["email"][0]
 		if !valid.IsEmail(email) {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
 				user.ErrInvalidEmail)
@@ -61,19 +72,8 @@ func Handler(s *session.Session) {
 			Email: email,
 			Type:  uLogged.Type,
 		}
-		roleIDsString := s.R.FormValue("roleIDs")
-		tagIDsString := s.R.FormValue("tagIDs")
-		roleIDs := strings.Split(roleIDsString, ",")
-		for _, v := range roleIDs {
-			if v == "" {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
-					"Enpty roleID value or no roleIDs")
-				http.Error(s.W, "Enpty roleID value or no roleIDs",
-					http.StatusBadRequest)
-				return
-			}
-		}
-		tagIDs := strings.Split(tagIDsString, ",")
+		roleIDs := s.R.MultipartForm.Value["roleIDs"]
+		tagIDs := s.R.MultipartForm.Value["tagIDs"]
 		ku := new(datastore.Key)
 		var urx userRole.UserRoles
 		var utx userTag.UserTags

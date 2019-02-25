@@ -113,3 +113,25 @@ func Delete(ctx context.Context, ek string) error {
 	}, opts)
 	return err
 }
+
+// GetAllDecodedStringIDs returns all the entity key's stringIDs as datastore key slice
+// via decoding each of them seperatly and an error.
+func GetAllDecodedStringIDs(ctx context.Context) ([]*datastore.Key, error) {
+	var kx []*datastore.Key
+	q := datastore.NewQuery("Tag")
+	q = q.KeysOnly()
+	for it := q.Run(ctx); ; {
+		k, err := it.Next(nil)
+		if err == datastore.Done {
+			return kx, err
+		}
+		if err != nil {
+			return nil, err
+		}
+		k, err = datastore.DecodeKey(k.StringID())
+		if err != nil {
+			return nil, err
+		}
+		kx = append(kx, k)
+	}
+}

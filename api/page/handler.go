@@ -17,8 +17,8 @@ import (
 func Handler(s *session.Session) {
 	ID := strings.Split(s.R.URL.Path, "/")[2]
 	if ID == "" {
-		log.Printf("Path: %s, Error: no page ID to delete\n", s.R.URL.Path)
-		http.Error(s.W, "No page ID to delete", http.StatusBadRequest)
+		log.Printf("Path: %s, Error: no page ID\n", s.R.URL.Path)
+		http.Error(s.W, "No page ID", http.StatusBadRequest)
 		return
 	}
 	switch s.R.Method {

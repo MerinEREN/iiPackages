@@ -23,15 +23,15 @@ var (
 
 // GetMulti returns limited entitity from the given cursor.
 // If limit is nil default limit will be used.
-func GetMulti(s *session.Session, c datastore.Cursor, limit interface{}) (Languages,
+func GetMulti(s *session.Session, crsr datastore.Cursor, limit interface{}) (Languages,
 	datastore.Cursor, error) {
 	ls := make(Languages)
 	// Maybe -LastModied should be the order ctireia if consider UX, think about that.
 	q := datastore.NewQuery("Language").
 		Project("ContentID", "Link").
 		Order("-Created")
-	if c.String() != "" {
-		q = q.Start(c)
+	if crsr.String() != "" {
+		q = q.Start(crsr)
 	}
 	if limit != nil {
 		l := limit.(int)
@@ -43,12 +43,12 @@ func GetMulti(s *session.Session, c datastore.Cursor, limit interface{}) (Langua
 		l := new(Language)
 		k, err := it.Next(l)
 		if err == datastore.Done {
-			c, err = it.Cursor()
-			return ls, c, err
+			crsr, err = it.Cursor()
+			return ls, crsr, err
 		}
 		if err != nil {
 			err = ErrFindLanguage
-			return ls, c, err
+			return ls, crsr, err
 		}
 		l.ID = k.StringID()
 		ls[l.ID] = l
