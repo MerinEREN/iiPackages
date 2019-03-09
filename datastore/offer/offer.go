@@ -8,13 +8,14 @@ up the detailed documentation that follows."
 package offer
 
 import (
+	"github.com/MerinEREN/iiPackages/datastore/demand"
 	"github.com/MerinEREN/iiPackages/session"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
 	"time"
 )
 
-// GetByParent returns limited entities via demand key as parent from the previous cursor
+// GetByParent returns limited entities via offer key as parent from the previous cursor
 // with given filters and order.
 func GetByParent(ctx context.Context, crsrAsString string, pk *datastore.Key) (
 	Offers, string, error) {
@@ -106,4 +107,27 @@ func Put(s *session.Session, o *Offer, k *datastore.Key) (*Offer, error) {
 	o.LastModified = time.Now()
 	_, err = datastore.Put(s.Ctx, k, o)
 	return o, err
+}
+
+// UpdateStatus set's offer status to given value "v" by given encoded offer key "ek"
+// and returns an error.
+func UpdateStatus(ctx context.Context, ek, v string) error {
+	k, err := datastore.DecodeKey(ek)
+	if err != nil {
+		return err
+	}
+	o := new(Offer)
+	return datastore.RunInTransaction(ctx, func(ctx context.Context) (err1 error) {
+		if err1 = datastore.Get(ctx, k, o); err1 != nil {
+			return
+		}
+		o.Status = v
+		if _, err1 = datastore.Put(ctx, k, o); err1 != nil {
+			return
+		}
+		if v == "accepted" {
+			err1 = demand.UpdateStatus(ctx, k.Parent().Encode(), v)
+		}
+		return
+	}, nil)
 }

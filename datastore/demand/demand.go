@@ -215,6 +215,15 @@ func UpdateStatus(ctx context.Context, ek, v string) error {
 		return err
 	}
 	d := new(Demand)
+	/* return datastore.RunInTransaction(ctx, func(ctx context.Context) (err1 error) {
+		if err1 = datastore.Get(ctx, k, d); err1 != nil {
+			return
+		}
+		d.Status = v
+		_, err1 = datastore.Put(ctx, k, d)
+		// UPDATE DEMAND'S OFFER'S STATUSES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		return
+	}, nil) */
 	if err = datastore.Get(ctx, k, d); err != nil {
 		return err
 	}

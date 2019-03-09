@@ -91,6 +91,11 @@ func Handler(s *session.Session) {
 		}
 	default:
 		k, err = datastore.DecodeKey(ID)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		err = datastore.Get(s.Ctx, k, d)
 		if err == datastore.ErrNoSuchEntity {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
