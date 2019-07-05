@@ -17,7 +17,6 @@ func Handler(s *session.Session) {
 		http.Error(s.W, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	rb := new(api.ResponseBody)
-	rb.Result = URL
-	api.WriteResponseJSON(s, rb)
+	s.W.Header().Set("Content-Type", "application/json")
+	api.WriteResponseJSON(s, URL)
 }

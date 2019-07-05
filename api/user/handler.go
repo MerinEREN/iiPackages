@@ -12,14 +12,12 @@ import (
 	"google.golang.org/appengine/memcache"
 	"log"
 	"net/http"
-	"strings"
 )
 
 // Handler updates and returns user via user ID which is an encoded key if provided
 // otherwise returns logged user.
 func Handler(s *session.Session) {
-	rb := new(api.ResponseBody)
-	ID := strings.Split(s.R.URL.Path, "/")[2]
+	ID := s.R.URL.Path[len("/users/"):]
 	if ID == "" && s.R.Method != "GET" {
 		log.Printf("Path: %s, Error: no user ID\n", s.R.URL.Path)
 		http.Error(s.W, "No user ID", http.StatusBadRequest)
@@ -205,8 +203,8 @@ func Handler(s *session.Session) {
 			if err != nil {
 				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			}
-			rb.Result = u
 		}
-		api.WriteResponseJSON(s, rb)
+		s.W.Header().Set("Content-Type", "application/json")
+		api.WriteResponseJSON(s, u)
 	}
 }

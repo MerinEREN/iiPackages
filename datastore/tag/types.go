@@ -5,11 +5,11 @@ import (
 )
 
 // Tag is an user profession.
-// Key's stringID is encoded "Content" key.
-// And the "ContentID" is an encoded "Content" key for multilang usage purpose.
+// Key's stringID is encoded "Context" key.
+// And the "ContextID" is an encoded "Context" key for multilang usage purpose.
 type Tag struct {
 	ID        string    `datastore:"-"`
-	ContentID string    `datastore:"-" json:"contentID"`
+	ContextID string    `datastore:"-" json:"contextID"`
 	Created   time.Time `json:"created"`
 }
 

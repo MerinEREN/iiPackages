@@ -10,7 +10,7 @@ package tag
 
 import (
 	"errors"
-	"github.com/MerinEREN/iiPackages/datastore/userTag"
+	"github.com/MerinEREN/iiPackages/datastore/tagUser"
 	"github.com/MerinEREN/iiPackages/session"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
@@ -37,7 +37,7 @@ func GetMulti(ctx context.Context, kx interface{}) (Tags, error) {
 			return nil, err
 		}
 		for i, v := range tx {
-			v.ContentID = kx[i].StringID()
+			v.ContextID = kx[i].StringID()
 			v.ID = kx[i].Encode()
 			ts[v.ID] = v
 		}
@@ -55,7 +55,7 @@ func GetMulti(ctx context.Context, kx interface{}) (Tags, error) {
 			err = ErrFindTag
 			return ts, err
 		}
-		t.ContentID = k.StringID()
+		t.ContextID = k.StringID()
 		t.ID = k.Encode()
 		ts[t.ID] = t
 	}
@@ -63,7 +63,7 @@ func GetMulti(ctx context.Context, kx interface{}) (Tags, error) {
 
 // Put puts and returns an entity, and also returns an error.
 func Put(ctx context.Context, t *Tag) (*Tag, error) {
-	k := datastore.NewKey(ctx, "Tag", t.ContentID, 0, nil)
+	k := datastore.NewKey(ctx, "Tag", t.ContextID, 0, nil)
 	var err error
 	t.Created = time.Now()
 	k, err = datastore.Put(ctx, k, t)
@@ -89,7 +89,7 @@ func PutAndGetMulti(s *session.Session, t *Tag) (Tags, error) {
 	return ts, err
 }
 
-// Delete removes the entity and all the corresponding "userTag" entities in a transaction
+// Delete removes the entity and all the corresponding "tagUser" entities in a transaction
 // by the provided encoded entity key
 // and returns an error.
 func Delete(ctx context.Context, ek string) error {
@@ -97,7 +97,7 @@ func Delete(ctx context.Context, ek string) error {
 	if err != nil {
 		return err
 	}
-	kutx, err := userTag.GetKeysUserOrTag(ctx, k)
+	kutx, err := tagUser.GetKeysByUserOrTagKey(ctx, k)
 	if err != nil {
 		return err
 	}
@@ -114,24 +114,9 @@ func Delete(ctx context.Context, ek string) error {
 	return err
 }
 
-// GetAllDecodedStringIDs returns all the entity key's stringIDs as datastore key slice
-// via decoding each of them seperatly and an error.
-func GetAllDecodedStringIDs(ctx context.Context) ([]*datastore.Key, error) {
-	var kx []*datastore.Key
+// GetAllKeysOnly returns all the entity keys as a slice and an error.
+func GetAllKeysOnly(ctx context.Context) ([]*datastore.Key, error) {
 	q := datastore.NewQuery("Tag")
 	q = q.KeysOnly()
-	for it := q.Run(ctx); ; {
-		k, err := it.Next(nil)
-		if err == datastore.Done {
-			return kx, err
-		}
-		if err != nil {
-			return nil, err
-		}
-		k, err = datastore.DecodeKey(k.StringID())
-		if err != nil {
-			return nil, err
-		}
-		kx = append(kx, k)
-	}
+	return q.GetAll(ctx, nil)
 }

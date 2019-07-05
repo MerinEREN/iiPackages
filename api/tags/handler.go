@@ -5,14 +5,13 @@ import (
 	// "github.com/MerinEREN/iiPackages/api/user"
 	"encoding/json"
 	"github.com/MerinEREN/iiPackages/api"
-	"github.com/MerinEREN/iiPackages/datastore/content"
-	"github.com/MerinEREN/iiPackages/datastore/demand"
+	"github.com/MerinEREN/iiPackages/datastore/context"
 	"github.com/MerinEREN/iiPackages/datastore/tag"
+	"github.com/MerinEREN/iiPackages/datastore/tagDemand"
 	"github.com/MerinEREN/iiPackages/session"
 	"google.golang.org/appengine/datastore"
 	"log"
 	"net/http"
-	"sort"
 	"strings"
 )
 
@@ -48,14 +47,14 @@ func Handler(s *session.Session) {
 		http.Error(s.W, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	isContentEditor, err := u.IsContentEditor(s.Ctx)
+	isContextEditor, err := u.IsContextEditor(s.Ctx)
 	if err != nil {
 		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 		// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		http.Error(s.W, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if u.Type != "inHouse" || !(isAdmin || isContentEditor) {
+	if u.Type != "inHouse" || !(isAdmin || isContextEditor) {
 		log.Printf("Unauthorized user %s trying to see "+
 			"%s path!!!", u.Email, s.R.URL.Path)
 		http.Error(s.W, "You are unauthorized user.", http.StatusUnauthorized)
@@ -65,9 +64,9 @@ func Handler(s *session.Session) {
 	var err error
 	switch s.R.Method {
 	case "POST":
-		contentID := s.R.FormValue("contentID")
+		contextID := s.R.FormValue("contextID")
 		t := &tag.Tag{
-			ContentID: contentID,
+			ContextID: contextID,
 		}
 		// Reset the cursor and get the entities from the begining.
 		var crsr datastore.Cursor
@@ -85,84 +84,60 @@ func Handler(s *session.Session) {
 		api.WriteResponse(s, rb)
 	default:
 		// Handles "GET" requests
-		st := s.R.FormValue("st")
-		if st != "" {
+		URL := s.R.URL
+		qry := URL.Query()
+		q := qry.Get("q")
+		if q != "" {
 			var kx []*datastore.Key
 			count := 0
-			switch st {
+			switch q {
 			case "top":
 				// Get most used by demands
-				dx, err := demand.GetAllLimited(s.Ctx, 100)
+				tdx, err := tagDemand.GetDistinctLatestLimited(s.Ctx, 100)
 				if err != nil {
-					log.Printf("Path: %s, Error: %v\n",
-						s.R.URL.Path, err)
+					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 					http.Error(s.W, err.Error(),
 						http.StatusInternalServerError)
 					return
 				}
-				if len(dx) == 0 {
+				if len(tdx) == 0 {
 					s.W.WriteHeader(http.StatusNoContent)
 					return
 				}
-				var elem int
-				var ok bool
-				tagIDsMap := make(map[string]int)
-				for _, v := range dx {
-					for _, v2 := range v.TagIDs {
-						if elem, ok = tagIDsMap[v2]; ok {
-							tagIDsMap[v2] = elem + 1
-						} else {
-							tagIDsMap[v2] = 1
-						}
-					}
+				for _, v := range tdx {
+					kx = append(kx, v.TagKey)
 				}
-				var twcx []TagWithCount
-				for i, v := range tagIDsMap {
-					twc := TagWithCount{i, v}
-					twcx = append(twcx, twc)
+			default:
+				// Get filtered via search text(q)
+				k2x, err := tag.GetAllKeysOnly(s.Ctx)
+				if err != nil {
+					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+					http.Error(s.W, err.Error(),
+						http.StatusInternalServerError)
+					return
 				}
-				sort.Slice(twcx, func(i, j int) bool {
-					return twcx[i].Count > twcx[j].Count
-				})
-				for _, v := range twcx {
-					if count == 6 {
-						break
-					}
-					k, err := datastore.DecodeKey(v.TagID)
+				var kcx []*datastore.Key
+				for _, v := range k2x {
+					k, err := datastore.DecodeKey(v.StringID())
 					if err != nil {
-						log.Printf("Path: %s, Error: %v\n",
-							s.R.URL.Path, err)
+						log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 						http.Error(s.W, err.Error(),
 							http.StatusInternalServerError)
 						return
 					}
-					kx = append(kx, k)
-					count = count + 1
+					kcx = append(kcx, k)
 				}
-			default:
-				// Get filtered via search text(st)
-				// Get content keys from all tag keys.
-				kcx, err := tag.GetAllDecodedStringIDs(s.Ctx)
-				if err != datastore.Done {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
-						err)
-					http.Error(s.W, err.Error(),
-						http.StatusInternalServerError)
-					return
-				}
-				cx := make([]content.Content, len(kcx))
+				cx := make([]context.Context, len(kcx))
 				err = datastore.GetMulti(s.Ctx, kcx, cx)
 				if err != nil {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
-						err)
+					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 					http.Error(s.W, err.Error(),
 						http.StatusInternalServerError)
 					return
 				}
 				cookie, err := s.R.Cookie("lang")
 				if err == http.ErrNoCookie {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
-						err)
+					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 					http.Error(s.W, err.Error(),
 						http.StatusInternalServerError)
 					return
@@ -171,19 +146,19 @@ func Handler(s *session.Session) {
 					if count == 6 {
 						break
 					}
-					contentValues := make(map[string]string)
-					err = json.Unmarshal(v.ValuesBS, &contentValues)
+					contextValues := make(map[string]string)
+					err = json.Unmarshal(v.ValuesBS, &contextValues)
 					if err != nil {
 						log.Printf("Path: %s, Error: %v\n",
-							s.R.URL.Path, err)
+							URL.Path, err)
 						http.Error(s.W, err.Error(),
 							http.StatusInternalServerError)
 						return
 
 					}
-					v.Value = contentValues[cookie.Value]
+					v.Value = contextValues[cookie.Value]
 					if strings.Contains(strings.ToLower(v.Value),
-						strings.ToLower(st)) {
+						strings.ToLower(q)) {
 						k := datastore.NewKey(s.Ctx, "Tag",
 							kcx[i].Encode(), 0, nil)
 						kx = append(kx, k)
@@ -193,7 +168,7 @@ func Handler(s *session.Session) {
 			}
 			for _, v := range kx {
 				t := new(tag.Tag)
-				t.ContentID = v.StringID()
+				t.ContextID = v.StringID()
 				t.ID = v.Encode()
 				ts[t.ID] = t
 			}
@@ -201,7 +176,7 @@ func Handler(s *session.Session) {
 			// Get all
 			ts, err = tag.GetMulti(s.Ctx, nil)
 			if err != datastore.Done {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 				http.Error(s.W, err.Error(),
 					http.StatusInternalServerError)
 				return
@@ -211,8 +186,7 @@ func Handler(s *session.Session) {
 			s.W.WriteHeader(http.StatusNoContent)
 			return
 		}
-		rb := new(api.ResponseBody)
-		rb.Result = ts
-		api.WriteResponseJSON(s, rb)
+		s.W.Header().Set("Content-Type", "application/json")
+		api.WriteResponseJSON(s, ts)
 	}
 }

@@ -6,10 +6,10 @@ import (
 
 // Language is an app language.
 // "ID" is language code and
-// "ContentID" is an encoded "Content" key for multilang usage purpose.
+// "ContextID" is an encoded "Context" key for multilang usage purpose.
 type Language struct {
 	ID           string    `datastore:"-"`
-	ContentID    string    `json:"contentID"`
+	ContextID    string    `json:"contextID"`
 	Link         string    `json:"link"`
 	Created      time.Time `json:"created"`
 	LastModified time.Time `json:"lastModified"`

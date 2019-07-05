@@ -41,6 +41,8 @@ func Handler(s *session.Session) {
 		s.W.WriteHeader(http.StatusNoContent)
 		return
 	case "PUT":
+		// IF "Content-Type" HEADER IS NOT "application/json" THROW A
+		// "415 Unsupported Media Type HTTP status code" !!!!!!!!!!!!!!!!!!!!!!!!!!
 		// https://stackoverflow.com/questions/15202448/go-formfile-for-multiple-files
 		err = s.R.ParseMultipartForm(32 << 20) // 32MB is the default used by FormFile.
 		if err != nil {
@@ -49,10 +51,9 @@ func Handler(s *session.Session) {
 			return
 		}
 		tagIDs := s.R.MultipartForm.Value["tagIDs"]
-		explanation := s.R.MultipartForm.Value["explanation"][0]
+		description := s.R.MultipartForm.Value["description"][0]
 		d = &demand.Demand{
-			TagIDs:      tagIDs,
-			Explanation: explanation,
+			Description: description,
 			Status:      "modified",
 		}
 		// DELETE UNUSED FILES IN STORAGE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

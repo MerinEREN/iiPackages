@@ -6,8 +6,8 @@ package user
 import (
 	"errors"
 	"github.com/MerinEREN/iiPackages/datastore/account"
-	"github.com/MerinEREN/iiPackages/datastore/userRole"
-	"github.com/MerinEREN/iiPackages/datastore/userTag"
+	"github.com/MerinEREN/iiPackages/datastore/roleUser"
+	"github.com/MerinEREN/iiPackages/datastore/tagUser"
 	"github.com/MerinEREN/iiPackages/session"
 	valid "github.com/asaskevich/govalidator"
 	"github.com/nu7hatch/gouuid"
@@ -34,15 +34,15 @@ func (u *User) IsAdmin(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	krx, err := userRole.GetKeysUserOrRole(ctx, k)
+	krx, err := roleUser.GetKeysByUserOrRoleKey(ctx, k)
 	if err != nil && err != datastore.Done {
 		return false, err
 	}
-	var encodedContentKey string
+	var encodedContextKey string
 	kc := new(datastore.Key)
 	for _, v := range krx {
-		encodedContentKey = v.StringID()
-		kc, err = datastore.DecodeKey(encodedContentKey)
+		encodedContextKey = v.StringID()
+		kc, err = datastore.DecodeKey(encodedContextKey)
 		if err != nil {
 			return false, err
 		}
@@ -53,24 +53,24 @@ func (u *User) IsAdmin(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-// IsContentEditor gets user's role keys first. Than returns encoded content key
+// IsContextEditor gets user's role keys first. Than returns encoded content key
 // from role key's stringID and converts it to content key.
 // And finaly, gets content's stringID from it and compares.
 // Than returns a boolean and an error.
-func (u *User) IsContentEditor(ctx context.Context) (bool, error) {
+func (u *User) IsContextEditor(ctx context.Context) (bool, error) {
 	k, err := datastore.DecodeKey(u.ID)
 	if err != nil {
 		return false, err
 	}
-	krx, err := userRole.GetKeysUserOrRole(ctx, k)
+	krx, err := roleUser.GetKeysByUserOrRoleKey(ctx, k)
 	if err != nil && err != datastore.Done {
 		return false, err
 	}
-	var encodedContentKey string
+	var encodedContextKey string
 	kc := new(datastore.Key)
 	for _, v := range krx {
-		encodedContentKey = v.StringID()
-		kc, err = datastore.DecodeKey(encodedContentKey)
+		encodedContextKey = v.StringID()
+		kc, err = datastore.DecodeKey(encodedContextKey)
 		if err != nil {
 			return false, err
 		}
@@ -124,7 +124,7 @@ func CreateWithAccount(s *session.Session) (acc *account.Account, u *User,
 }
 
 // New creates a new user and returns it and its key if not exist, or returns an error.
-// Also sets new user's default role as admin to "userRole" kind in a transaction.
+// Also sets new user's default role as admin to "roleUser" kind in a transaction.
 func New(s *session.Session, email string, pk *datastore.Key) (
 	u *User, k *datastore.Key, err error) {
 	var c int
@@ -141,18 +141,18 @@ func New(s *session.Session, email string, pk *datastore.Key) (
 			// Password:     GetHmac(password),
 		}
 		k = datastore.NewKey(s.Ctx, "User", email, 0, pk)
-		kc := datastore.NewKey(s.Ctx, "Content", "admin", 0, nil)
+		kc := datastore.NewKey(s.Ctx, "Context", "admin", 0, nil)
 		kr := datastore.NewKey(s.Ctx, "Role", kc.Encode(), 0, nil)
-		ur := &userRole.UserRole{
+		ru := &roleUser.RoleUser{
 			RoleKey: kr,
 		}
-		kur := datastore.NewKey(s.Ctx, "UserRole", kr.Encode(), 0, k)
+		kru := datastore.NewKey(s.Ctx, "RoleUser", kr.Encode(), 0, k)
 		err = datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (
 			err1 error) {
 			if k, err1 = datastore.Put(ctx, k, u); err1 != nil {
 				return
 			}
-			err1 = userRole.Put(ctx, kur, ur)
+			_, err1 = datastore.Put(ctx, kru, ru)
 			return
 		}, nil)
 		u.ID = k.Encode()
@@ -189,23 +189,17 @@ func GetKeysByParent(ctx context.Context, pk *datastore.Key) ([]*datastore.Key, 
 	}
 }
 
-// GetKeysByParentOrdered returns an error and users keys as a slice via account key as descended order of the "Created" property.
+/*
+GetKeysByParentOrdered returns users keys as a slice via account key
+as descended order of the "Created" property and an error.
+*/
 func GetKeysByParentOrdered(ctx context.Context, pk *datastore.Key) ([]*datastore.Key, error) {
-	var kx []*datastore.Key
 	q := datastore.NewQuery("User")
-	q = q.Ancestor(pk).
+	q = q.
+		Ancestor(pk).
 		Order("-Created").
 		KeysOnly()
-	for it := q.Run(ctx); ; {
-		k, err := it.Next(nil)
-		if err == datastore.Done {
-			return kx, err
-		}
-		if err != nil {
-			return nil, err
-		}
-		kx = append(kx, k)
-	}
+	return q.GetAll(ctx, nil)
 }
 
 // GetProjected returns thumbnail enough properties via account key and an error.
@@ -312,28 +306,29 @@ func UpdateStatus(ctx context.Context, ek, v string) error {
 	return err
 }
 
-// Delete sets user's status to "deleted" and removes user's roles and tags in a transaction
-// and returns an error.
+// Delete sets user's status to "deleted"
+// and removes user's roles and tags in a transaction.
+// Also, returns an error.
 func Delete(ctx context.Context, ek string) error {
 	k, err := datastore.DecodeKey(ek)
 	if err != nil {
 		return err
 	}
-	kurx, err := userRole.GetKeys(ctx, k)
+	krux, err := roleUser.GetKeys(ctx, k)
 	if err != datastore.Done {
 		return err
 	}
-	kutx, err := userTag.GetKeys(ctx, k)
+	ktux, err := tagUser.GetKeys(ctx, k)
 	if err != datastore.Done {
 		return err
 	}
 	opts := new(datastore.TransactionOptions)
 	opts.XG = true
 	err = datastore.RunInTransaction(ctx, func(ctx context.Context) (err1 error) {
-		if err1 = datastore.DeleteMulti(ctx, kurx); err1 != nil {
+		if err1 = datastore.DeleteMulti(ctx, krux); err1 != nil {
 			return
 		}
-		if err1 = datastore.DeleteMulti(ctx, kutx); err1 != nil {
+		if err1 = datastore.DeleteMulti(ctx, ktux); err1 != nil {
 			return
 		}
 		err1 = UpdateStatus(ctx, ek, "deleted")

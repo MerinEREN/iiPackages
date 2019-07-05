@@ -3,11 +3,14 @@ package photo
 import "time"
 
 // Photo Status is active or deactive
+// "Type" values are main and etc.
 type Photo struct {
+	ID           string    `datastore:"-"`
 	Link         string    `json:"link"`
+	Type         string    `json:"type"`
 	Title        string    `json:"title"`
 	Description  string    `json:"description"`
-	Uploaded     time.Time `json:"uploaded"`
+	Created      time.Time `json:"created"`
 	LastModified time.Time `json:"lastModified"`
 	Status       string    `json:"status"`
 }

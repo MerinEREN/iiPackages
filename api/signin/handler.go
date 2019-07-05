@@ -1,4 +1,4 @@
-// Package signin returns login urls.
+// Package signin returns the login url/urls.
 package signin
 
 import (
@@ -32,7 +32,6 @@ func Handler(s *session.Session) {
 	/* loginURLs["LinkedIn"] = "liURL"
 	loginURLs["Twitter"] = "tURL"
 	loginURLs["Facebook"] = "fURL" */
-	rb := new(api.ResponseBody)
-	rb.Result = loginURLs
-	api.WriteResponseJSON(s, rb)
+	s.W.Header().Set("Content-Type", "application/json")
+	api.WriteResponseJSON(s, loginURLs)
 }

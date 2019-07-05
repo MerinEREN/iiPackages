@@ -1,18 +1,18 @@
 /*
-Package contents "Every package should have a package comment, a block comment preceding the package clause.
+Package contexts "Every package should have a package comment, a block comment preceding the package clause.
 For multi-file packages, the package comment only needs to be present in one file, and any
 one will do. The package comment should introduce the package and provide information
 relevant to the package as a whole. It will appear first on the godoc page and should set
 up the detailed documentation that follows."
 */
-package contents
+package contexts
 
 import (
 	"encoding/json"
 	"github.com/MerinEREN/iiPackages/api"
-	"github.com/MerinEREN/iiPackages/datastore/content"
+	"github.com/MerinEREN/iiPackages/datastore/context"
 	// "github.com/MerinEREN/iiPackages/datastore/page"
-	"github.com/MerinEREN/iiPackages/datastore/pageContent"
+	"github.com/MerinEREN/iiPackages/datastore/pageContext"
 	"github.com/MerinEREN/iiPackages/session"
 	"google.golang.org/appengine/datastore"
 	"io"
@@ -22,20 +22,20 @@ import (
 	"strings"
 )
 
-// Handler handles contents of pages and contents page.
+// Handler handles contexts of pages and contexts page.
 // ADD AUTHORISATION CONTROL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 func Handler(s *session.Session) {
 	var err error
 	switch s.R.Method {
 	case "POST":
-		var cx []*content.Content
+		var cx []*context.Context
 		// Using 'decoder' is an alternative and can be used if response body has
 		// more than one json object.
 		// Otherwise don't use it, because it has performance disadvantages
 		// compared to other solution.
 		dec := json.NewDecoder(s.R.Body)
 		for {
-			c := new(content.Content)
+			c := new(context.Context)
 			if err = dec.Decode(c); err == io.EOF {
 				break
 			} else if err != nil {
@@ -53,10 +53,10 @@ func Handler(s *session.Session) {
 			}
 			cx = append(cx, c)
 		}
-		cs := make(content.Contents)
+		cs := make(context.Contexts)
 		// Reset the cursor and get the entities from the begining.
 		var crsr datastore.Cursor
-		cs, crsr, err = content.PutMultiAndGetMulti(s, crsr, cx)
+		cs, crsr, err = context.PutMultiAndGetNextLimited(s, crsr, cx)
 		if err != nil && err != datastore.Done {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -66,21 +66,21 @@ func Handler(s *session.Session) {
 		for _, v := range cs {
 			// If entity is from datastore.
 			if len(v.PageIDs) == 0 {
-				contentValues := make(map[string]string)
-				err = json.Unmarshal(v.ValuesBS, &contentValues)
+				contextValues := make(map[string]string)
+				err = json.Unmarshal(v.ValuesBS, &contextValues)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 					http.Error(s.W, err.Error(), http.StatusInternalServerError)
 					return
 				}
-				v.Values = contentValues
+				v.Values = contextValues
 				k, err = datastore.DecodeKey(v.ID)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 					http.Error(s.W, err.Error(), http.StatusInternalServerError)
 					return
 				}
-				_, kpx, err := pageContent.GetKeysWithPageOrContentKeys(s.Ctx, k)
+				_, kpx, err := pageContext.GetKeysByPageOrContextKey(s.Ctx, k)
 				if err != datastore.Done {
 					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 					http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -93,17 +93,17 @@ func Handler(s *session.Session) {
 				v.PageIDs = ekpx
 			}
 		}
-		rb := new(api.ResponseBody)
-		rb.Result = cs
-		rb.PrevPageURL = "/contents?c=" + crsr.String()
+		next := api.GenerateSubLink(s, crsr, "next")
+		s.W.Header().Set("Link", next)
+		s.W.Header().Set("X-Reset", "true")
 		s.W.Header().Set("Content-Type", "application/json")
 		s.W.WriteHeader(http.StatusCreated)
-		api.WriteResponse(s, rb)
+		api.WriteResponseJSON(s, cs)
 	case "PUT":
-		var cx []*content.Content
+		var cx []*context.Context
 		dec := json.NewDecoder(s.R.Body)
 		for {
-			c := new(content.Content)
+			c := new(context.Context)
 			if err = dec.Decode(c); err == io.EOF {
 				break
 			} else if err != nil {
@@ -121,7 +121,7 @@ func Handler(s *session.Session) {
 			}
 			cx = append(cx, c)
 		}
-		_, err = content.PutMulti(s, cx)
+		_, err = context.PutMulti(s, cx)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -136,7 +136,7 @@ func Handler(s *session.Session) {
 			http.Error(s.W, "no key", http.StatusBadRequest)
 			return
 		}
-		err = content.DeleteMulti(s.Ctx, ekx)
+		err = context.DeleteMulti(s.Ctx, ekx)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -144,51 +144,60 @@ func Handler(s *session.Session) {
 		}
 		s.W.WriteHeader(http.StatusNoContent)
 	default:
-		crsr, err := datastore.DecodeCursor(s.R.FormValue("c"))
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		cookie, err := s.R.Cookie("lang")
-		if err == http.ErrNoCookie {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		cs := make(content.Contents)
-		rb := new(api.ResponseBody)
-		if pID := s.R.FormValue("pageID"); pID != "" {
-			k := datastore.NewKey(s.Ctx, "Page", pID, 0, nil)
-			_, kx, err := pageContent.GetKeysWithPageOrContentKeys(s.Ctx, k)
+		URL := s.R.URL
+		q := URL.Query()
+		cs := make(context.Contexts)
+		if pID := q.Get("pID"); pID != "" {
+			kp := datastore.NewKey(s.Ctx, "Page", pID, 0, nil)
+			_, kx, err := pageContext.GetKeysByPageOrContextKey(s.Ctx, kp)
 			if err != datastore.Done {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-				http.Error(s.W, err.Error(), http.StatusInternalServerError)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+				http.Error(s.W, err.Error(),
+					http.StatusInternalServerError)
 				return
 			}
 			if kx != nil {
-				cs, _, err = content.GetMulti(s, crsr, nil, kx)
+				cx := make([]*context.Context, len(kx))
+				// RETURNED ENTITY LIMIT COULD BE A PROBLEM HERE !!!!!!!!!!
+				err = datastore.GetMulti(s.Ctx, kx, cx)
 				if err != nil {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-					http.Error(s.W, err.Error(), http.StatusInternalServerError)
+					log.Printf("Path: %s, Error: %v\n", URL.Path,
+						err)
+					http.Error(s.W, err.Error(),
+						http.StatusInternalServerError)
 					return
 				}
-				contentsClient, err := GetLangValue(cs, cookie.Value)
-				if err != nil {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-					http.Error(s.W, err.Error(), http.StatusInternalServerError)
+				for i, v := range kx {
+					cs[v.Encode()] = cx[i]
+				}
+				cookie, err := s.R.Cookie("lang")
+				if err == http.ErrNoCookie {
+					// "http.Status..." MAY BE WRONG !!!!!!!!!!!!!!!!!!
+					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+					http.Error(s.W, err.Error(), http.StatusBadRequest)
 					return
 				}
-				rb.Result = contentsClient
+				rb, err := GetLangValue(cs, cookie.Value)
+				if err != nil {
+					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+					http.Error(s.W, err.Error(),
+						http.StatusInternalServerError)
+					return
+				}
+				s.W.Header().Set("X-Reset", "true")
+				s.W.Header().Set("Content-Type", "application/json")
+				api.WriteResponseJSON(s, rb)
 			} else {
 				s.W.WriteHeader(http.StatusNoContent)
 				return
 			}
 		} else {
-			cs, crsr, err = content.GetMulti(s, crsr, nil, nil)
-			if err != nil && err != datastore.Done {
+			after := q.Get("after")
+			cs, after, err = context.GetNextLimited(s.Ctx, after, 2222)
+			if err != nil {
 				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-				http.Error(s.W, err.Error(), http.StatusInternalServerError)
+				http.Error(s.W, err.Error(),
+					http.StatusInternalServerError)
 				return
 			}
 			if len(cs) == 0 {
@@ -197,33 +206,41 @@ func Handler(s *session.Session) {
 			}
 			k := new(datastore.Key)
 			for _, v := range cs {
-				contentValues := make(map[string]string)
-				err = json.Unmarshal(v.ValuesBS, &contentValues)
+				contextValues := make(map[string]string)
+				err = json.Unmarshal(v.ValuesBS, &contextValues)
 				if err != nil {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-					http.Error(s.W, err.Error(), http.StatusInternalServerError)
+					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
+						err)
+					http.Error(s.W, err.Error(),
+						http.StatusInternalServerError)
 					return
 				}
-				v.Values = contentValues
+				v.Values = contextValues
 				k, err = datastore.DecodeKey(v.ID)
 				if err != nil {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-					http.Error(s.W, err.Error(), http.StatusInternalServerError)
+					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
+						err)
+					http.Error(s.W, err.Error(),
+						http.StatusInternalServerError)
 					return
 				}
-				_, kpx, err := pageContent.GetKeysWithPageOrContentKeys(s.Ctx, k)
+				_, kpx, err := pageContext.GetKeysByPageOrContextKey(
+					s.Ctx, k)
 				if err != datastore.Done {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-					http.Error(s.W, err.Error(), http.StatusInternalServerError)
+					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
+						err)
+					http.Error(s.W, err.Error(),
+						http.StatusInternalServerError)
 					return
 				}
 				for _, v2 := range kpx {
 					v.PageIDs = append(v.PageIDs, v2.Encode())
 				}
 			}
-			rb.PrevPageURL = "/contents?c=" + crsr.String()
-			rb.Result = cs
+			next := api.GenerateSubLink(s, crsr, "next")
+			s.W.Header().Set("Link", next)
+			s.W.Header().Set("Content-Type", "application/json")
+			api.WriteResponseJSON(s, cs)
 		}
-		api.WriteResponseJSON(s, rb)
 	}
 }

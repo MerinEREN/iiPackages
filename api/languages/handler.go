@@ -9,7 +9,6 @@ import (
 	"google.golang.org/appengine/datastore"
 	"log"
 	"net/http"
-	"strings"
 )
 
 // Handler posts a language and returns limited languages from the begining of the kind.
@@ -17,6 +16,8 @@ import (
 // and gets languages from the begining of the given cursor..
 // ADD AUTHORISATION CONTROL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 func Handler(s *session.Session) {
+	URL := s.R.URL
+	q := URL.Query()
 	switch s.R.Method {
 	case "POST":
 		langCode := s.R.FormValue("ID")
@@ -27,22 +28,20 @@ func Handler(s *session.Session) {
 		}
 		mpf, hdr, err := s.R.FormFile("file")
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 		} else {
 			defer mpf.Close()
 			lang.Link, err = storage.UploadFile(s, mpf, hdr)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}
-		// Reset the cursor and get the entities from the begining.
-		var crsr datastore.Cursor
 		var langs language.Languages
-		langs, crsr, err = language.PutAndGetMulti(s, crsr, lang)
-		if err != nil && err != datastore.Done {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+		langs, err = language.PutAndGetAll(s, lang)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -54,44 +53,47 @@ func Handler(s *session.Session) {
 		api.WriteResponse(s, rb)
 	case "DELETE":
 		var err error
-		langCodesAsString := s.R.FormValue("IDs")
-		lcx := strings.Split(langCodesAsString, ",")
+		lcx := q["IDs"]
 		if len(lcx) == 0 {
-			log.Printf("Path: %s, Error: no language code\n", s.R.URL.Path)
+			log.Printf("Path: %s, Error: no language code\n", URL.Path)
 			http.Error(s.W, "no language code", http.StatusBadRequest)
 			return
 		} else if len(lcx) == 1 {
-			err = language.Delete(s, lcx[0])
+			k := datastore.NewKey(s.Ctx, "Language", lcx[0], 0, nil)
+			err = datastore.Delete(s.Ctx, k)
 		} else {
-			err = language.DeleteMulti(s, lcx)
+			kx := make([]*datastore.Key, len(lcx), len(lcx))
+			for _, v := range lcx {
+				kx = append(kx, datastore.NewKey(s.Ctx, "Language", v, 0, nil))
+			}
+			err = datastore.DeleteMulti(s.Ctx, kx)
 		}
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		s.W.WriteHeader(http.StatusNoContent)
 	default:
 		// Handles "GET" requests
-		crsr, err := datastore.DecodeCursor(s.R.FormValue("c"))
+		ls, err := language.GetAll(s.Ctx)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		langs, crsr, err := language.GetMulti(s, crsr, nil)
-		if err != nil && err != datastore.Done {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if len(langs) == 0 {
+		switch len(ls) {
+		case 0:
 			s.W.WriteHeader(http.StatusNoContent)
 			return
+		case 1:
+			s.W.Header().Set("Content-Type", "application/json")
+			for _, v := range ls {
+				api.WriteResponseJSON(s, v)
+			}
+		default:
+			s.W.Header().Set("Content-Type", "application/json")
+			api.WriteResponseJSON(s, ls)
 		}
-		rb := new(api.ResponseBody)
-		rb.PrevPageURL = "/languages?c=" + crsr.String()
-		rb.Result = langs
-		api.WriteResponseJSON(s, rb)
 	}
 }

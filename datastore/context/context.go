@@ -1,15 +1,15 @@
 /*
-Package content "Every package should have a package comment, a block comment preceding the package clause.
+Package context "Every package should have a package comment, a block comment preceding the package clause.
 For multi-file packages, the package comment only needs to be present in one file, and any
 one will do. The package comment should introduce the package and provide information
 relevant to the package as a whole. It will appear first on the godoc page and should set
 up the detailed documentation that follows."
 */
-package content
+package context
 
 import (
 	"crypto/md5"
-	"github.com/MerinEREN/iiPackages/datastore/pageContent"
+	"github.com/MerinEREN/iiPackages/datastore/pageContext"
 	"github.com/MerinEREN/iiPackages/session"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
@@ -18,46 +18,38 @@ import (
 )
 
 /*
-GetMulti returns corresponding entities with values of all languages
-if keys provided.
-Otherwise returns limited entitities from the given cursor.
-If limit is nil default limit will be used.
+GetNextLimited returns limited entitities after the given cursor.
+If limit is 0 or greater than 40, default limit will be used.
 */
-func GetMulti(s *session.Session, crsr datastore.Cursor, limit, kx interface{}) (
-	Contents, datastore.Cursor, error) {
-	cs := make(Contents)
-	if kx, ok := kx.([]*datastore.Key); ok {
-		cx := make([]*Content, len(kx))
-		// RETURNED ENTITY LIMIT COULD BE A PROBLEM HERE !!!!!!!!!!!!!!!!!!!!!!!!!!
-		err := datastore.GetMulti(s.Ctx, kx, cx)
-		if err != nil {
-			return nil, crsr, err
-		}
-		for i, v := range kx {
-			cs[v.Encode()] = cx[i]
-		}
-		return cs, crsr, err
-	}
-	q := datastore.NewQuery("Content").
+func GetNextLimited(ctx context.Context, crsrAsString string, lim int) (
+	Contexts, string, error) {
+	var err error
+	var after datastore.Cursor
+	cs := make(Contexts)
+	q := datastore.NewQuery("Context").
 		Order("-LastModified")
-	if crsr.String() != "" {
-		q = q.Start(crsr)
+	if crsrAsString != "" {
+		after, err = datastore.DecodeCursor(crsrAsString)
+		if err != nil {
+			return nil, crsrAsString, err
+		}
+		q = q.Start(after)
 	}
-	if limit != nil {
-		// l := limit.(int)
-		// q = q.Limit(l)
+	// if lim > 0 && lim < 40 {
+	if lim != 0 {
+		q = q.Limit(lim)
 	} else {
-		// q = q.Limit(20)
+		q = q.Limit(20)
 	}
-	for it := q.Run(s.Ctx); ; {
-		c := new(Content)
+	for it := q.Run(ctx); ; {
+		c := new(Context)
 		k, err := it.Next(c)
 		if err == datastore.Done {
-			crsr, err = it.Cursor()
-			return cs, crsr, err
+			after, err = it.Cursor()
+			return cs, after.String(), err
 		}
 		if err != nil {
-			return cs, crsr, err
+			return cs, crsrAsString, err
 		}
 		c.ID = k.Encode()
 		cs[c.ID] = c
@@ -65,17 +57,17 @@ func GetMulti(s *session.Session, crsr datastore.Cursor, limit, kx interface{}) 
 }
 
 /*
-PutMulti is a transaction that delets all PageContent entities for corresponding content
+PutMulti is a transaction that delets all PageContext entities for corresponding context
 if only the request method is "PUT".
 And then creates and puts new ones.
-Finally, puts modified or newly created Contents and returns new Contents if request method
+Finally, puts modified or newly created Contexts and returns new Contexts if request method
 is POST.
 */
-func PutMulti(s *session.Session, cx []*Content) (Contents, error) {
+func PutMulti(s *session.Session, cx []*Context) (Contexts, error) {
 	var kx []*datastore.Key
 	var kpcxDelete []*datastore.Key
 	var kpcxPut []*datastore.Key
-	var pcx pageContent.PageContents
+	var pcx pageContext.PageContexts
 	var err error
 	for _, v := range cx {
 		k := new(datastore.Key)
@@ -84,7 +76,7 @@ func PutMulti(s *session.Session, cx []*Content) (Contents, error) {
 			if err != nil {
 				return nil, err
 			}
-			kpcx2, err := pageContent.GetKeysOnly(s.Ctx, k)
+			kpcx2, err := pageContext.GetKeysOnly(s.Ctx, k)
 			if err != datastore.Done {
 				return nil, err
 			}
@@ -103,7 +95,7 @@ func PutMulti(s *session.Session, cx []*Content) (Contents, error) {
 			} else {
 				stringID = v.Values["en-US"]
 			}
-			k = datastore.NewKey(s.Ctx, "Content", stringID, 0, nil)
+			k = datastore.NewKey(s.Ctx, "Context", stringID, 0, nil)
 			v.Created = time.Now()
 		}
 		kx = append(kx, k)
@@ -114,10 +106,10 @@ func PutMulti(s *session.Session, cx []*Content) (Contents, error) {
 			if err != nil {
 				return nil, err
 			}
-			kpc := datastore.NewIncompleteKey(s.Ctx, "PageContent", kp)
+			kpc := datastore.NewIncompleteKey(s.Ctx, "PageContext", kp)
 			kpcxPut = append(kpcxPut, kpc)
-			pc := new(pageContent.PageContent)
-			pc.ContentKey = k
+			pc := new(pageContext.PageContext)
+			pc.ContextKey = k
 			pcx = append(pcx, pc)
 		}
 	}
@@ -141,7 +133,7 @@ func PutMulti(s *session.Session, cx []*Content) (Contents, error) {
 		return nil, err
 	}
 	if s.R.Method == "POST" {
-		cs := make(Contents)
+		cs := make(Contexts)
 		for i, v := range cx {
 			v.ID = kx[i].Encode()
 			cs[v.ID] = v
@@ -151,20 +143,20 @@ func PutMulti(s *session.Session, cx []*Content) (Contents, error) {
 	return nil, err
 }
 
-// PutMultiAndGetMulti is a transaction which puts the posted entities first
+// PutMultiAndGetNextLimited is a transaction which puts the posted entities first
 // and then gets entities from the reseted cursor by the given limit.
 // Finally returnes received entities with posted entities added to them
 // as a map.
-func PutMultiAndGetMulti(s *session.Session, crsr datastore.Cursor, cx []*Content) (
-	Contents, datastore.Cursor, error) {
-	csPut := make(Contents)
-	csGet := make(Contents)
+func PutMultiAndGetNextLimited(s *session.Session, crsr datastore.Cursor, cx []*Context) (
+	Contexts, datastore.Cursor, error) {
+	csPut := make(Contexts)
+	csGet := make(Contexts)
 	// USAGE "s" INSTEAD OF "ctx" INSIDE THE TRANSACTION IS WRONG !!!!!!!!!!!!!!!!!!!!!
 	err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
 		if csPut, err1 = PutMulti(s, cx); err1 != nil {
 			return
 		}
-		if csGet, crsr, err1 = GetMulti(s, crsr, nil, nil); err1 == nil ||
+		if csGet, crsr, err1 = GetNextLimited(s.Ctx, crsr, 2222); err1 == nil ||
 			err1 == datastore.Done {
 			for i, v := range csGet {
 				csPut[i] = v
@@ -176,7 +168,7 @@ func PutMultiAndGetMulti(s *session.Session, crsr datastore.Cursor, cx []*Conten
 }
 
 // DeleteMulti removes the entities
-// and all the corresponding pageContent entities by the provided encoded keys
+// and all the corresponding pageContext entities by the provided encoded keys
 // also returns an error.
 func DeleteMulti(ctx context.Context, ekx []string) error {
 	var kx []*datastore.Key
@@ -187,7 +179,7 @@ func DeleteMulti(ctx context.Context, ekx []string) error {
 			return err
 		}
 		kx = append(kx, k)
-		kpcx2, err := pageContent.GetKeysOnly(ctx, k)
+		kpcx2, err := pageContext.GetKeysOnly(ctx, k)
 		if err != datastore.Done {
 			return err
 		}

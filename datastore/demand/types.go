@@ -19,9 +19,7 @@ type Demand struct {
 	ID           string    `datastore:"-"`
 	UserID       string    `datastore:"-" json:"userID"`
 	AccountID    string    `datastore:"-" json:"accountID"`
-	TagIDs       []string  `json:"tagIDs"`
-	Explanation  string    `json:"explanation"`
-	LinksPhoto   []string  `json:"linksPhoto"`
+	Description  string    `json:"description"`
 	Created      time.Time `json:"created"`
 	LastModified time.Time `json:"lastModified"`
 	Status       string    `json:"status"`

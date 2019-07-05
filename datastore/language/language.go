@@ -9,50 +9,29 @@ up the detailed documentation that follows.
 package language
 
 import (
-	"errors"
 	"github.com/MerinEREN/iiPackages/session"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
 	"time"
 )
 
-// Errors
-var (
-	ErrFindLanguage = errors.New("Error while getting language")
-)
-
-// GetMulti returns limited entitity from the given cursor.
-// If limit is nil default limit will be used.
-func GetMulti(s *session.Session, crsr datastore.Cursor, limit interface{}) (Languages,
-	datastore.Cursor, error) {
-	ls := make(Languages)
-	// Maybe -LastModied should be the order ctireia if consider UX, think about that.
-	q := datastore.NewQuery("Language").
-		Project("ContentID", "Link").
+// GetAll returns all the entities from the begining of the kind.
+func GetAll(ctx context.Context) (Languages, error) {
+	var lx []*Language
+	q := datastore.NewQuery("Language")
+	q = q.
+		Project("ContextID", "Link").
 		Order("-Created")
-	if crsr.String() != "" {
-		q = q.Start(crsr)
+	kx, err := q.GetAll(ctx, lx)
+	if err != nil {
+		return nil, err
 	}
-	if limit != nil {
-		l := limit.(int)
-		q = q.Limit(l)
-	} else {
-		q = q.Limit(20)
+	ls := make(Languages)
+	for i, v := range kx {
+		lx[i].ID = v.StringID()
+		ls[v.StringID()] = lx[i]
 	}
-	for it := q.Run(s.Ctx); ; {
-		l := new(Language)
-		k, err := it.Next(l)
-		if err == datastore.Done {
-			crsr, err = it.Cursor()
-			return ls, crsr, err
-		}
-		if err != nil {
-			err = ErrFindLanguage
-			return ls, crsr, err
-		}
-		l.ID = k.StringID()
-		ls[l.ID] = l
-	}
+	return ls, err
 }
 
 /*
@@ -88,10 +67,9 @@ func Put(s *session.Session, l *Language) (*Language, error) {
 	return l, err
 }
 
-// PutAndGetMulti is a transaction which puts the posted item first
+// PutAndGetAll is a transaction which puts the posted item first
 // and then gets entities by the given limit.
-func PutAndGetMulti(s *session.Session, c datastore.Cursor, l *Language) (Languages,
-	datastore.Cursor, error) {
+func PutAndGetAll(s *session.Session, l *Language) (Languages, error) {
 	ls := make(Languages)
 	lNew := new(Language)
 	// USAGE "s" INSTEAD OF "ctx" INSIDE THE TRANSACTION IS WRONG !!!!!!!!!!!!!!!!!!!!!
@@ -100,32 +78,16 @@ func PutAndGetMulti(s *session.Session, c datastore.Cursor, l *Language) (Langua
 		if err1 != nil {
 			return
 		}
-		ls, c, err1 = GetMulti(s, c, 19)
+		ls, err1 = GetAll(s.Ctx)
 		return
 	}, nil)
 	ls[lNew.ID] = lNew
-	return ls, c, err
+	return ls, err
 }
 
 // GetCount returns language count and an error.
-/* func GetCount(s *session.Session) (c int, err error) {
+/* func GetCount(ctx context.Context) (c int, err error) {
 	q := datastore.NewQuery("Language")
-	c, err = q.Count(s.Ctx)
+	c, err = q.Count(ctx)
 	return
 } */
-
-// Delete removes the entity by the provided language code and returns an error.
-func Delete(s *session.Session, langCode string) error {
-	k := datastore.NewKey(s.Ctx, "Language", langCode, 0, nil)
-	return datastore.Delete(s.Ctx, k)
-}
-
-// DeleteMulti removes the entitys by the provided language code slice
-// and returns an error.
-func DeleteMulti(s *session.Session, lcx []string) error {
-	var kx []*datastore.Key
-	for _, v := range lcx {
-		kx = append(kx, datastore.NewKey(s.Ctx, "Language", v, 0, nil))
-	}
-	return datastore.DeleteMulti(s.Ctx, kx)
-}

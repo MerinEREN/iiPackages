@@ -14,10 +14,8 @@ type ServicePack struct {
 	UserID       string    `datastore:"-" json:"userID"`
 	AccountID    string    `datastore:"-" json:"accountID"`
 	Type         string    `json:"type"`
-	TagIDs       []string  `json:"tagIDs"`
 	Title        string    `json:"title"`
-	Explanation  string    `json:"description"`
-	LinksPhoto   []string  `json:"linksPhoto"`
+	Description  string    `json:"description"`
 	Created      time.Time `json:"created"`
 	LastModified time.Time `json:"lastModified"`
 	Status       string    `json:"status"`

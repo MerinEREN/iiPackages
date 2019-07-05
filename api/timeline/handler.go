@@ -4,11 +4,11 @@ package timeline
 import (
 	"encoding/json"
 	"github.com/MerinEREN/iiPackages/api"
-	"github.com/MerinEREN/iiPackages/datastore/demand"
+	"github.com/MerinEREN/iiPackages/datastore/tagDemand"
 	// "github.com/MerinEREN/iiPackages/datastore/offer"
-	"github.com/MerinEREN/iiPackages/datastore/servicePack"
+	"github.com/MerinEREN/iiPackages/datastore/tagServicePack"
+	"github.com/MerinEREN/iiPackages/datastore/tagUser"
 	"github.com/MerinEREN/iiPackages/datastore/user"
-	"github.com/MerinEREN/iiPackages/datastore/userTag"
 	"github.com/MerinEREN/iiPackages/session"
 	"google.golang.org/appengine/datastore"
 	"google.golang.org/appengine/memcache"
@@ -16,23 +16,22 @@ import (
 	"net/http"
 )
 
-// Handler returns offers, demands, servicePacks and other necessary item counts
+// Handler returns demands, offers, servicePacks and other necessary timeline item counts
 // via user or account (if user is admin) tag keys.
-// First checks memcache for tag keys, if not present gets tag keys via request's uID which
-// is encoded key.
+// First checks memcache for tag keys
+// if not present gets tag keys via request's uID which is encoded key.
 func Handler(s *session.Session) {
-	err := s.R.ParseForm()
-	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-		http.Error(s.W, err.Error(), http.StatusInternalServerError)
+	URL := s.R.URL
+	q := URL.Query()
+	uID := q.Get("uID")
+	if uID == "" {
+		log.Printf("Path: %s, Error: No user ID.\n", URL.Path)
+		http.Error(s.W, "No user ID.", http.StatusBadRequest)
 		return
 	}
-	var userTagKeys []*datastore.Key
-	var accTagKeys []*datastore.Key
-	var tagKeysQuery []*datastore.Key
-	uKey, err := datastore.DecodeKey(s.R.Form.Get("uID"))
+	ku, err := datastore.DecodeKey(uID)
 	if err != nil {
-		log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+		log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 		http.Error(s.W, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -41,30 +40,26 @@ func Handler(s *session.Session) {
 	if err == nil {
 		err = json.Unmarshal(item.Value, u)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n",
-				s.R.URL.Path, err)
-			http.Error(s.W, err.Error(),
-				http.StatusInternalServerError)
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	} else {
-		err = datastore.Get(s.Ctx, uKey, u)
+		err = datastore.Get(s.Ctx, ku, u)
 		if err == datastore.ErrNoSuchEntity {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!
 			http.Error(s.W, err.Error(), http.StatusNoContent)
 			return
 		} else if err != nil {
-			log.Printf("Path: %s, Error: %v\n",
-				s.R.URL.Path, err)
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!
-			http.Error(s.W, err.Error(),
-				http.StatusInternalServerError)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		} else {
 			bs, err := json.Marshal(u)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			}
 			item = &memcache.Item{
 				Key:   "u",
@@ -72,174 +67,159 @@ func Handler(s *session.Session) {
 			}
 			err = memcache.Add(s.Ctx, item)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			}
 		}
 	}
+	var ktux []*datastore.Key
+	var ktax []*datastore.Key
+	var ktx []*datastore.Key
 	isAdmin, err := u.IsAdmin(s.Ctx)
 	if isAdmin {
-		item, err := memcache.Get(s.Ctx, "accTagKeys")
+		item, err := memcache.Get(s.Ctx, "ktax")
 		if err == nil {
-			err = json.Unmarshal(item.Value, &accTagKeys)
+			err = json.Unmarshal(item.Value, &ktax)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			tagKeysQuery = accTagKeys
+			ktx = ktax
 		} else {
-			uKeys, err := user.GetKeysByParentOrdered(s.Ctx, uKey.Parent())
-			if err == datastore.Done {
-				if len(uKeys) == 0 {
-					log.Printf("Path: %s, Request: get user keys via parent, Error: %v\n", s.R.URL.Path, err)
-					s.W.WriteHeader(http.StatusNoContent)
-					return
-				}
-			} else if err != nil {
-				log.Printf("Path: %s, Request: get user keys via parent, Error: %v\n", s.R.URL.Path, err)
-				http.Error(s.W, err.Error(),
-					http.StatusInternalServerError)
+			kux, err := user.GetKeysByParentOrdered(s.Ctx, ku.Parent())
+			if err != nil {
+				log.Printf("Path: %s, Request: get user keys via parent, Error: %v\n", URL.Path, err)
+				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			for _, v := range uKeys {
-				userTagKeys, err = userTag.GetKeysUserOrTag(s.Ctx, v)
+			if len(kux) == 0 {
+				// Impossible !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				log.Printf("Path: %s, Request: get user keys via parent, Error: %v\n", URL.Path, err)
+				s.W.WriteHeader(http.StatusNoContent)
+				return
+			}
+			for _, v := range kux {
+				ktux, err = tagUser.GetKeysByUserOrTagKey(s.Ctx, v)
 				if err == datastore.Done {
-					if len(userTagKeys) == 0 {
-						log.Printf("Path: %s, Request: getting user's tags, Error: %v\n", s.R.URL.Path, err)
+					if len(ktux) == 0 {
+						log.Printf("Path: %s, Request: getting user's tags, Error: %v\n", URL.Path, err)
 						s.W.WriteHeader(http.StatusNoContent)
 						return
 					}
 				} else if err != nil {
-					log.Printf("Path: %s, Request: getting user's tags, Error: %v\n", s.R.URL.Path, err)
+					log.Printf("Path: %s, Request: getting user's tags, Error: %v\n", URL.Path, err)
 					http.Error(s.W, err.Error(),
 						http.StatusInternalServerError)
 					return
 				}
-				for _, v2 := range userTagKeys {
+				for _, v2 := range ktux {
 					absent := true
-					for _, v3 := range accTagKeys {
+					for _, v3 := range ktax {
 						if *v3 == *v2 {
 							absent = false
+							break
 						}
 					}
 					if absent {
-						accTagKeys = append(accTagKeys, v2)
+						ktax = append(ktax, v2)
 					}
 				}
 			}
-			bs, err := json.Marshal(accTagKeys)
+			bs, err := json.Marshal(ktax)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			}
 			item = &memcache.Item{
-				Key:   "accTagKeys",
+				Key:   "ktax",
 				Value: bs,
 			}
 			err = memcache.Add(s.Ctx, item)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			}
-			tagKeysQuery = accTagKeys
+			ktx = ktax
 		}
 	} else {
-		item, err := memcache.Get(s.Ctx, "userTagKeys")
+		item, err := memcache.Get(s.Ctx, "ktux")
 		if err == nil {
-			err = json.Unmarshal(item.Value, &tagKeysQuery)
+			err = json.Unmarshal(item.Value, &ktx)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		} else {
-			userTagKeys, err = userTag.GetKeysUserOrTag(s.Ctx, uKey)
+			ktux, err = tagUser.GetKeysByUserOrTagKey(s.Ctx, ku)
 			if err == datastore.Done {
-				if len(userTagKeys) == 0 {
-					log.Printf("Path: %s, Request: getting user's tags, Error: %v\n", s.R.URL.Path, err)
+				if len(ktux) == 0 {
+					log.Printf("Path: %s, Request: getting user's tags, Error: %v\n", URL.Path, err)
 					s.W.WriteHeader(http.StatusNoContent)
 					return
 				}
 			} else if err != nil {
-				log.Printf("Path: %s, Request: getting user's tags, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Request: getting user's tags, Error: %v\n", URL.Path, err)
 				http.Error(s.W, err.Error(),
 					http.StatusInternalServerError)
 				return
 			}
-			bs, err := json.Marshal(userTagKeys)
+			bs, err := json.Marshal(ktux)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			}
 			item = &memcache.Item{
-				Key:   "userTagKeys",
+				Key:   "ktux",
 				Value: bs,
 			}
 			err = memcache.Add(s.Ctx, item)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			}
-			tagKeysQuery = userTagKeys
+			ktx = ktux
 		}
 	}
-	var crsrAsStringDx []string
-	if len(s.R.Form["cds"]) == 0 {
-		crsrAsStringDx = make([]string, len(tagKeysQuery))
-	} else {
-		crsrAsStringDx = s.R.Form["cds"]
-	}
-	/* var crsrAsStringOx []string
-	if len(s.R.Form["cos"]) == 0 {
-		crsrAsStringOx = make([]string, len(tagKeysQuery))
-	} else {
-		crsrAsStringOx = s.R.Form["cos"]
-	} */
-	var crsrAsStringSPx []string
-	if len(s.R.Form["csps"]) == 0 {
-		crsrAsStringSPx = make([]string, len(tagKeysQuery))
-	} else {
-		crsrAsStringSPx = s.R.Form["csps"]
-	}
-	// var kdx, kox, kspx []*datastore.Key
-	var kdx, kspx []*datastore.Key
+	befored := q["befored"]
+	// beforeo := q["beforeo"]
+	beforesp := q["beforesp"]
 	kds := make(map[string]*datastore.Key)
 	ksps := make(map[string]*datastore.Key)
 	// FIND A WAY TO MAKE QUERIES CONQURENTLY
-	for i, v := range tagKeysQuery {
-		kdx, err = demand.GetNewestKeysFilteredByTag(s.Ctx, crsrAsStringDx[i], v)
-		if err != nil && err != datastore.Done {
-			log.Printf("Path: %s, Request: get newest demands via tag key to count, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(),
-				http.StatusInternalServerError)
+	for i, v := range ktx {
+		kdx, _, err := tagDemand.GetPrevKeysParentsFilteredByTagKey(s.Ctx,
+			befored[i], v)
+		if err != datastore.Done {
+			log.Printf("Path: %s, Request: get previous demand's keys by tag key to count, Error: %v\n", URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		for _, v := range kdx {
-			kds[v.Encode()] = v
+		for _, v2 := range kdx {
+			kds[v2.Encode()] = v2
 		}
-		/* kox, err = offer.GetNewestKeysFilteredByTag(s.Ctx, crsrAsStringOx[i], v)
-		if err != nil && err != datastore.Done {
-			log.Printf("Path: %s, Request: get newest offers via tag key to count, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(),
-				http.StatusInternalServerError)
+		/* kox, _, err := tagOffer.GetPrevKeysParentsFilteredByTagKey(s.Ctx, beforeo[i], v)
+		if err != datastore.Done {
+			log.Printf("Path: %s, Request: get previous offer's keys by tag key to count, Error: %v\n", URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		for _, v := range kox {
-			kos[v.Encode()] = v
+		for _, v3 := range kox {
+			kos[v3.Encode()] = v3
 		} */
-		kspx, err = servicePack.GetNewestKeysFilteredByTag(s.Ctx, crsrAsStringSPx[i], v)
-		if err != nil && err != datastore.Done {
-			log.Printf("Path: %s, Request: get newest service packs via tag key to count, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(),
-				http.StatusInternalServerError)
+		kspx, _, err := tagServicePack.GetPrevKeysParentsFilteredByTagKey(s.Ctx,
+			beforesp[i], v)
+		if err != datastore.Done {
+			log.Printf("Path: %s, Request: get previous service pack's keys by tag key to count, Error: %v\n", URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		for _, v := range kspx {
-			ksps[v.Encode()] = v
+		for _, v4 := range kspx {
+			ksps[v4.Encode()] = v4
 		}
 	}
-	rb := new(api.ResponseBody)
-	// rb.Result = len(kds) + len(kos) + len(ksps)
-	rb.Result = len(kds) + len(ksps)
-	if rb.Result == 0 {
+	// count := len(kds) + len(kos) + len(ksps)
+	count := len(kds) + len(ksps)
+	if count == 0 {
 		s.W.WriteHeader(http.StatusNoContent)
 		return
 	}
-	api.WriteResponseJSON(s, rb)
+	s.W.Header().Set("Content-Type", "application/json")
+	api.WriteResponseJSON(s, count)
 }

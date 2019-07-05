@@ -17,7 +17,6 @@ type Account struct {
 	ID           string            `datastore:"-"`
 	Name         string            `json:"name"`
 	Type         string            `json:"type"`
-	Link         string            `datastore:"-" json:"link"`
 	Addresses    address.Addresses `datastore:"-" json:"addresses"`
 	Status       string            `json:"status"`
 	About        string            `json:"about"`

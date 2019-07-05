@@ -1,15 +1,15 @@
-package content
+package context
 
 import (
 	"time"
 )
 
-// Content is the struct to store application contents for pages with different languages.
+// Context is the struct to store application contexts for pages with different languages.
 // And returns only the requested language as Value.
 // datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// Key's "StringID" is content's english value([en-US]). Useful for some cases like
+// Key's "StringID" is context's english value([en-US]). Useful for some cases like
 // user's isAdmin() check.
-type Content struct {
+type Context struct {
 	ID           string            `datastore:"-"`
 	Value        string            `datastore:"-" json:"value"`
 	ValuesBS     []byte            `json:"-"`
@@ -19,5 +19,5 @@ type Content struct {
 	PageIDs      []string          `datastore:"-" json:"pageIDs"`
 }
 
-// Contents is map[string]*Content.
-type Contents map[string]*Content
+// Contexts is map[string]*Context.
+type Contexts map[string]*Context

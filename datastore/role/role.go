@@ -6,7 +6,7 @@ package role
 import (
 	"errors"
 	"github.com/MerinEREN/iiPackages/datastore/roleTypeRole"
-	"github.com/MerinEREN/iiPackages/datastore/userRole"
+	"github.com/MerinEREN/iiPackages/datastore/roleUser"
 	"github.com/MerinEREN/iiPackages/session"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
@@ -85,7 +85,7 @@ func PutAndGetMulti(s *session.Session, r *Role) (Roles, error) {
 	return rs, err
 }
 
-// Delete removes the entity and all the corresponding "roleTypeRole" and "userRole"
+// Delete removes the entity and all the corresponding "roleTypeRole" and "roleUser"
 // entities in a transaction by the provided encoded entity key
 // and returns an error.
 func Delete(ctx context.Context, ek string) error {
@@ -97,7 +97,7 @@ func Delete(ctx context.Context, ek string) error {
 	if err != nil {
 		return err
 	}
-	kurx, err := userRole.GetKeysUserOrRole(ctx, k)
+	kurx, err := roleUser.GetKeysByUserOrRoleKey(ctx, k)
 	if err != nil {
 		return err
 	}
