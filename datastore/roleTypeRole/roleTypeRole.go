@@ -52,50 +52,25 @@ import (
 	}
 } */
 
-// Put puts an entity with corresponding entity key and returns an error.
-/* func Put(ctx context.Context, k *datastore.Key, e *RoleTypeRole) error {
-	_, err := datastore.Put(ctx, k, e)
-	return err
-} */
-
-// PutMulti puts entities with corresponding entity keys and returns an error.
-func PutMulti(ctx context.Context, kx []*datastore.Key, ex RoleTypeRoles) error {
-	_, err := datastore.PutMulti(ctx, kx, ex)
-	return err
-}
-
-// GetKeys returns the roleTypeRole keys as a slice if the role key or roleType key
-// provided, and also an error.
+/*
+GetKeys returns the roleTypeRole keys as a slice if the role key or roleType key
+provided, and also an error.
+*/
 func GetKeys(ctx context.Context, key *datastore.Key) ([]*datastore.Key, error) {
-	var kx []*datastore.Key
 	q := datastore.NewQuery("RoleTypeRole")
 	kind := key.Kind()
 	switch kind {
-	case "Role":
+	case "RoleType":
 		q = q.
-			Filter("RoleKey =", key)
+			Filter("RoleTypeKey =", key)
 	default:
-		// For "RoleType" kind
+		// For "Role" kind
 		q = q.
 			Ancestor(key)
 	}
 	q = q.
 		KeysOnly()
-	for it := q.Run(ctx); ; {
-		k, err := it.Next(nil)
-		if err == datastore.Done {
-			return kx, err
-		}
-		if err != nil {
-			return nil, err
-		}
-		kx = append(kx, k)
-	}
-}
-
-// DeleteMulti deletes all the entities by provided keys and returns an error.
-func DeleteMulti(ctx context.Context, kx []*datastore.Key) error {
-	return datastore.DeleteMulti(ctx, kx)
+	return q.GetAll(ctx, nil)
 }
 
 // GetCount returns the count of the entities that has the provided key and an error.

@@ -114,7 +114,9 @@ func Delete(ctx context.Context, ek string) error {
 	return err
 }
 
-// GetAllKeysOnly returns all the entity keys as a slice and an error.
+/*
+GetAllKeysOnly returns all the entity keys as a slice and an error.
+*/
 func GetAllKeysOnly(ctx context.Context) ([]*datastore.Key, error) {
 	q := datastore.NewQuery("Tag")
 	q = q.KeysOnly()

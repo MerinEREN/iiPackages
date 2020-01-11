@@ -20,27 +20,27 @@ func GetMainByAncestor(ctx context.Context, pType string, pk *datastore.Key) (
 	return p, err
 }
 
-/*
-// GetViaParent returns the entities projected via parent key and an error.
-func GetViaParent(ctx context.Context, pk *datastore.Key, after, lim string) (
+// GetFilteredByAncestorLimited returns the limited entities filtered by ancestor.
+func GetFilteredByAncestorLimited(ctx context.Context, pk *datastore.Key, lim int) (
 	Photos, error) {
-	ps := make(Photos)
+	var px []*Photo
 	q := datastore.NewQuery("Photo")
 	q = q.
 		Ancestor(pk).
-		Order("-LastModified")
 		Project("Link")
-	for it := q.Run(ctx); ; {
-		p := new(Photo)
-		// BUG !!!!! If i made this function as naked return "it.Next" fails because of "p"
-		_, err := it.Next(p)
-		if err == datastore.Done {
-			return nil, err
-		}
-		if err != nil {
-			return nil, err
-		}
+	if lim > 0 && lim < 40 {
+		q = q.Limit(lim)
+	} else {
+		q = q.Limit(12)
 	}
-	return p, nil
+	kx, err := q.GetAll(ctx, &px)
+	if err != nil {
+		return nil, err
+	}
+	ps := make(Photos)
+	for i, v := range kx {
+		px[i].ID = v.Encode()
+		ps[v.Encode()] = px[i]
+	}
+	return ps, err
 }
-*/

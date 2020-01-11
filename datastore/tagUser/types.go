@@ -10,5 +10,5 @@ type TagUser struct {
 	TagKey *datastore.Key
 }
 
-// TagsUser is a []*TagUser
-type TagsUser []*TagUser
+// TagUsers is a []*TagUser
+type TagUsers []*TagUser

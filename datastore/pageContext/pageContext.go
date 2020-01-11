@@ -57,10 +57,11 @@ func GetKeysByPageOrContextKey(ctx context.Context, key *datastore.Key) (
 	}
 }
 
-// GetKeysOnly returns corresponding pageContext keys by provided context or page key
-// and also returns an error.
-func GetKeysOnly(ctx context.Context, k *datastore.Key) ([]*datastore.Key, error) {
-	var kx []*datastore.Key
+/*
+GetKeys returns corresponding pageContext keys by provided context or page key
+and also returns an error.
+*/
+func GetKeys(ctx context.Context, k *datastore.Key) ([]*datastore.Key, error) {
 	q := datastore.NewQuery("PageContext")
 	if k.Kind() == "Page" {
 		q = q.
@@ -71,16 +72,7 @@ func GetKeysOnly(ctx context.Context, k *datastore.Key) ([]*datastore.Key, error
 	}
 	q = q.
 		KeysOnly()
-	for it := q.Run(ctx); ; {
-		k, err := it.Next(nil)
-		if err == datastore.Done {
-			return kx, err
-		}
-		if err != nil {
-			return nil, err
-		}
-		kx = append(kx, k)
-	}
+	return q.GetAll(ctx, nil)
 }
 
 // GetCount returns the count of the entities that has provided key and an error.

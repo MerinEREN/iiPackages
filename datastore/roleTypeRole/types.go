@@ -5,9 +5,9 @@ import (
 )
 
 // RoleTypeRole datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// RoleType key is the parent key.
+// "Role" key is the parent key.
 type RoleTypeRole struct {
-	RoleKey *datastore.Key
+	RoleTypeKey *datastore.Key
 }
 
 // RoleTypeRoles is a []*RoleTypeRole

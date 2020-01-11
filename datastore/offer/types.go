@@ -13,14 +13,13 @@ import (
 // Demand key is the ancestor key.
 // AccountID is used to link the account.
 type Offer struct {
-	ID           string    `datastore:"-"`
-	UserID       string    `json:"userID"`
-	AccountID    string    `datastore:"-" json:"accountID"`
-	Explanation  string    `datastore:",noindex" json:"explanation"`
-	Amount       float64   `datastore:",noindex" json:"amount"`
-	Created      time.Time `datastore:",noindex" json:"created"`
-	LastModified time.Time `json:"lastModified"`
-	Status       string    `json:"status"`
+	ID          string    `datastore:"-"`
+	UserID      string    `json:"userID"`
+	AccountID   string    `datastore:"-" json:"accountID"`
+	Description string    `datastore:",noindex" json:"description"`
+	Amount      float64   `datastore:",noindex" json:"amount"`
+	Created     time.Time `json:"created"`
+	Status      string    `json:"status"`
 	/* Price        price.Price `datastore:",noindex" json:"price"`
 	StartTime      time.Time        `datastore:",noindex" json:"startTime"`
 	Duration       string           `datastore:",noindex" json:"duration"`

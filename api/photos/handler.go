@@ -8,100 +8,147 @@ up the detailed documentation that follows."
 package photos
 
 import (
-	"github.com/MerinEREN/iiPackages/datastore/photo"
-	// "github.com/MerinEREN/iiPackages/storage"
+	"encoding/json"
 	"github.com/MerinEREN/iiPackages/api"
+	"github.com/MerinEREN/iiPackages/datastore/photo"
 	"github.com/MerinEREN/iiPackages/session"
+	"github.com/MerinEREN/iiPackages/storage"
 	"google.golang.org/appengine/datastore"
+	"io/ioutil"
 	"log"
+	"mime/multipart"
 	"net/http"
+	"strconv"
+	"time"
 )
 
 // Handler ...
 func Handler(s *session.Session) {
+	URL := s.R.URL
+	q := URL.Query()
+	pID := q.Get("pID")
+	if pID == "" {
+		log.Printf("Path: %s, Error: no parent ID\n", URL.Path)
+		http.Error(s.W, "No parent ID", http.StatusBadRequest)
+		return
+	}
+	pk, err := datastore.DecodeKey(pID)
+	if err != nil {
+		log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+		http.Error(s.W, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	switch s.R.Method {
-	/*
-		case "POST":
-			// https://stackoverflow.com/questions/15202448/go-formfile-for-multiple-files
-			err := s.R.ParseMultipartForm(32 << 20) // 32MB is the default used by FormFile.
-			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
-				http.Error(s.W, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			uID := s.R.Form.Get("uID")
-			tagIDs := s.R.MultipartForm.Value["tagIDs"]
-			description := s.R.MultipartForm.Value["description"][0]
-			d := &photo.Photo{
-				Description: description,
-				Status:      "active",
-			}
-			fhx := s.R.MultipartForm.File["photos"]
-			linksPhoto := make([]string, len(fhx))
-			for _, v := range fhx {
-				f, err := v.Open()
-				if err != nil {
-					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
-					http.Error(s.W, err.Error(),
-						http.StatusInternalServerError)
-					return
-				}
-				defer f.Close()
-				link, err := storage.UploadFile(s, f, v)
-				if err != nil {
-					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
-					http.Error(s.W, err.Error(),
-						http.StatusInternalServerError)
-					return
-				}
-				linksPhoto = append(linksPhoto, link)
-			}
-			d.LinksPhoto = linksPhoto
-			pk, err := datastore.DecodeKey(uID)
-			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
-				http.Error(s.W, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			k := datastore.NewIncompleteKey(s.Ctx, "Photo", pk)
-			_, err = photo.Put(s, d, k)
-			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
-				http.Error(s.W, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			s.W.WriteHeader(http.StatusNoContent)
-	*/
-	default:
-		URL := s.R.URL
-		q := URL.Query()
-		pID := q.Get("pID")
-		if pID == "" {
-			log.Printf("Path: %s, Error: no parent ID\n", URL.Path)
-			http.Error(s.W, "No parent ID", http.StatusBadRequest)
+	case "POST":
+		ct := s.R.Header.Get("Content-Type")
+		if ct != "application/json" {
+			log.Printf("Path: %s, Error: %v\n", URL.Path, "Content type is not application/json")
+			http.Error(s.W, "Content type is not application/json",
+				http.StatusUnsupportedMediaType)
 			return
 		}
-		pk, err := datastore.DecodeKey(pID)
+		var bs []byte
+		bs, err = ioutil.ReadAll(s.R.Body)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		var fhx []*multipart.FileHeader
+		err = json.Unmarshal(bs, &fhx)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		px := make([]*photo.Photo, 0, cap(fhx))
+		kx := make([]*datastore.Key, 0, cap(fhx))
+		for _, v := range fhx {
+			f, err := v.Open()
+			if err != nil {
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+				http.Error(s.W, err.Error(),
+					http.StatusInternalServerError)
+				return
+			}
+			defer f.Close()
+			link, err := storage.UploadFile(s, f, v)
+			if err != nil {
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+				http.Error(s.W, err.Error(),
+					http.StatusInternalServerError)
+				return
+			}
+			p := &photo.Photo{
+				Link:         link,
+				Status:       "pending",
+				Created:      time.Now(),
+				LastModified: time.Now(),
+			}
+			px = append(px, p)
+			k := datastore.NewIncompleteKey(s.Ctx, "Photo", pk)
+			kx = append(kx, k)
+		}
+		switch len(kx) {
+		case 1:
+			_, err = datastore.Put(s.Ctx, kx[0], px[0])
+			if err != nil {
+				// REMOVE THE UPLOADED FILE FROM THE STORAGE !!!!!!!!!!!!!!
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+				http.Error(s.W, err.Error(),
+					http.StatusInternalServerError)
+				return
+			}
+		default:
+			_, err = datastore.PutMulti(s.Ctx, kx, px)
+			if err != nil {
+				// REMOVE ALL THE UPLOADED FILES FROM THE STORAGE !!!!!!!!!
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+				http.Error(s.W, err.Error(),
+					http.StatusInternalServerError)
+				return
+			}
+		}
+		/*
+			NOT RETURNING PHOTOS, BECAUSE AT THE FINAL VERSION
+			THE INITIAL VALUE OF THE "status" OF THE PHOTO WON'T BE "active"
+			AND PHOTO'S STATUS WILL BE "active" AFTER CONFIRMATION PROCESS.
+		*/
+		// SEND THE INFORMATION TO SHOWN AS SNACKBAR MESSAGE !!!!!!!!!!!!!!!!!!!!!!
+		s.W.WriteHeader(http.StatusNoContent)
+	default:
 		pType := q.Get("type")
 		if pType == "" {
-			/*
-				ps, err := photo.GetFilteredByAncestor(s.Ctx, parentKey)
-				if err != datastore.Done {
-					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
-					http.Error(s.W, err.Error(),
-						http.StatusInternalServerError)
-					return
+			limit := q.Get("limit")
+			var lim int
+			if limit == "" {
+				lim = 0
+			} else {
+				lim, err = strconv.Atoi(limit)
+				if err != nil {
+					log.Printf("Path: %s, Error: %v\n",
+						URL.Path, err)
 				}
-				if len(ps) == 0 {
-					s.W.WriteHeader(http.StatusNoContent)
-					return
+			}
+			ps, err := photo.GetFilteredByAncestorLimited(s.Ctx, pk, lim)
+			if err != nil {
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+				http.Error(s.W, err.Error(),
+					http.StatusInternalServerError)
+				return
+			}
+			switch len(ps) {
+			case 0:
+				s.W.WriteHeader(http.StatusNoContent)
+			case 1:
+				s.W.Header().Set("Content-Type", "application/json")
+				for _, v := range ps {
+					api.WriteResponseJSON(s, v)
 				}
-			*/
+			default:
+				s.W.Header().Set("Content-Type", "application/json")
+				api.WriteResponseJSON(s, ps)
+			}
 		} else {
 			p, err := photo.GetMainByAncestor(s.Ctx, pType, pk)
 			if err == datastore.Done {

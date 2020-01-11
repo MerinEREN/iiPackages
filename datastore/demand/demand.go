@@ -8,13 +8,60 @@ up the detailed documentation that follows."
 package demand
 
 import (
+	"github.com/MerinEREN/iiPackages/datastore/photo"
+	"github.com/MerinEREN/iiPackages/datastore/tagDemand"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
 	"time"
 )
 
-// GetMulti returns the corresponding entities as a map with their "ID"s assigned
-// by their keys and an error.
+/*
+Add puts the demand, it's tag relations and it's photos
+also returns it's key and an error.
+*/
+func Add(ctx context.Context, k *datastore.Key, d *Demand, tIDs []string,
+	px []*photo.Photo) (*datastore.Key, error) {
+	tdx := make([]*tagDemand.TagDemand, 0, cap(tIDs))
+	ktdx := make([]*datastore.Key, 0, cap(tIDs))
+	kpx := make([]*datastore.Key, 0, cap(px))
+	err := datastore.RunInTransaction(ctx, func(ctx context.Context) (
+		err1 error) {
+		k, err1 = datastore.Put(ctx, k, d)
+		if err1 != nil {
+			return
+		}
+		for _, v := range tIDs {
+			ktd := datastore.NewKey(ctx, "TagDemand", v, 0, k)
+			ktdx = append(ktdx, ktd)
+			kt := new(datastore.Key)
+			kt, err1 = datastore.DecodeKey(v)
+			if err1 != nil {
+				return
+			}
+			td := &tagDemand.TagDemand{
+				Created: time.Now(),
+				TagKey:  kt,
+			}
+			tdx = append(tdx, td)
+		}
+		_, err1 = datastore.PutMulti(ctx, ktdx, tdx)
+		if err1 != nil {
+			return
+		}
+		for i := 0; i < len(px); i++ {
+			kp := datastore.NewIncompleteKey(ctx, "Photo", k)
+			kpx = append(kpx, kp)
+		}
+		_, err1 = datastore.PutMulti(ctx, kpx, px)
+		return
+	}, nil)
+	return k, err
+}
+
+/*
+GetMulti returns the corresponding entities as a map with their "ID"s assigned
+by their keys and an error.
+*/
 func GetMulti(ctx context.Context, kx []*datastore.Key) (Demands, error) {
 	var dx []*Demand
 	err := datastore.GetMulti(ctx, kx, dx)
@@ -81,21 +128,10 @@ func GetLatestLimited(ctx context.Context, lim int) ([]Demand, error) {
 	return dx, err
 }
 
-// Update modifies an entity in the kind and returns the entity and an error.
-func Update(ctx context.Context, k *datastore.Key, d *Demand) (*datastore.Key, *Demand, error) {
-	var err error
-	tempD := new(Demand)
-	if err = datastore.Get(ctx, k, tempD); err != nil {
-		return nil, nil, err
-	}
-	d.Created = tempD.Created
-	d.LastModified = time.Now()
-	k, err = datastore.Put(ctx, k, d)
-	return k, d, err
-}
-
-// UpdateStatus set's demand status to given value "v" by given encoded demand key "ek"
-// and returns an error.
+/*
+UpdateStatus set's demand status to given value "v" by given encoded demand key "ek"
+and returns an error.
+*/
 func UpdateStatus(ctx context.Context, ek, v string) error {
 	k, err := datastore.DecodeKey(ek)
 	if err != nil {
@@ -117,4 +153,29 @@ func UpdateStatus(ctx context.Context, ek, v string) error {
 	d.Status = v
 	_, err = datastore.Put(ctx, k, d)
 	return err
+}
+
+/*
+Update updates and returns (only with "ID", "LastModified" and "Status" fields) the entity
+by the given encoded entity key "ek" and also returns an error.
+*/
+func Update(ctx context.Context, d *Demand, ek string) (*Demand, error) {
+	k, err := datastore.DecodeKey(ek)
+	if err != nil {
+		return nil, err
+	}
+	d2 := new(Demand)
+	if err = datastore.Get(ctx, k, d2); err != nil {
+		return nil, err
+	}
+	d.Created = d2.Created
+	d.LastModified = time.Now()
+	d.Status = "updated"
+	_, err = datastore.Put(ctx, k, d)
+	d3 := &Demand{
+		ID:           ek,
+		LastModified: d.LastModified,
+		Status:       d.Status,
+	}
+	return d3, err
 }

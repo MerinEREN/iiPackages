@@ -38,7 +38,7 @@ func GetKeysByDemandOrTagKey(ctx context.Context, key *datastore.Key) (
 		for _, v := range kx {
 			kt, err := datastore.DecodeKey(v.StringID())
 			if err != nil {
-				return nil, err
+				return ktx, err
 			}
 			ktx = append(ktx, kt)
 		}
@@ -46,8 +46,10 @@ func GetKeysByDemandOrTagKey(ctx context.Context, key *datastore.Key) (
 	}
 }
 
-// GetDistinctLatestLimited returns distinct entities from limited results
-// and also an error.
+/*
+GetDistinctLatestLimited returns distinct entities from limited results
+and also an error.
+*/
 func GetDistinctLatestLimited(ctx context.Context, lim int) ([]TagDemand, error) {
 	var tdx []TagDemand
 	q := datastore.NewQuery("TagDemand")

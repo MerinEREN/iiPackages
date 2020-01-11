@@ -7,10 +7,8 @@ import (
 	"errors"
 	"github.com/MerinEREN/iiPackages/datastore/roleTypeRole"
 	"github.com/MerinEREN/iiPackages/datastore/roleUser"
-	"github.com/MerinEREN/iiPackages/session"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
-	"time"
 )
 
 // Errors
@@ -19,10 +17,30 @@ var (
 )
 
 /*
+GetAll returns all the entities in an order(-Created) and an error.
+*/
+func GetAll(ctx context.Context) (Roles, error) {
+	var rx []*Role
+	q := datastore.NewQuery("Role")
+	q = q.
+		Order("-Created")
+	kx, err := q.GetAll(ctx, &rx)
+	if err != nil {
+		return nil, err
+	}
+	rs := make(Roles)
+	for i, v := range kx {
+		rx[i].ID = v.Encode()
+		rx[i].ContextID = v.StringID()
+		rs[v.Encode()] = rx[i]
+	}
+	return rs, err
+}
+
+/*
 GetMulti returns corresponding entities if keys provided.
 Otherwise returns limited entitities from the given cursor.
 If limit is nil default limit will be used.
-*/
 func GetMulti(ctx context.Context, kx interface{}) (Roles, error) {
 	rs := make(Roles)
 	if kx, ok := kx.([]*datastore.Key); ok {
@@ -33,7 +51,7 @@ func GetMulti(ctx context.Context, kx interface{}) (Roles, error) {
 			return nil, err
 		}
 		for i, v := range rx {
-			v.ContentID = kx[i].StringID()
+			v.ContextID = kx[i].StringID()
 			v.ID = kx[i].Encode()
 			rs[v.ID] = v
 		}
@@ -51,43 +69,47 @@ func GetMulti(ctx context.Context, kx interface{}) (Roles, error) {
 			err = ErrFindRole
 			return rs, err
 		}
-		r.ContentID = k.StringID()
+		r.ContextID = k.StringID()
 		r.ID = k.Encode()
 		rs[r.ID] = r
 	}
 }
+*/
 
-// Put puts and returns an entity, and also returns an error.
-func Put(ctx context.Context, r *Role) (*Role, error) {
-	k := datastore.NewKey(ctx, "Role", r.ContentID, 0, nil)
-	var err error
-	r.Created = time.Now()
-	k, err = datastore.Put(ctx, k, r)
-	r.ID = k.Encode()
-	return r, err
-}
-
-// PutAndGetMulti is a transaction which puts the posted item first
-// and then gets entities by the given limit.
-func PutAndGetMulti(s *session.Session, r *Role) (Roles, error) {
-	rs := make(Roles)
-	rNew := new(Role)
-	// USAGE "s.Ctx" INSTEAD OF "ctx" INSIDE THE TRANSACTION IS WRONG !!!!!!!!!!!!!!!!!
-	err := datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (err1 error) {
-		rNew, err1 = Put(s.Ctx, r)
+/*
+Add puts the role first
+and then creates and puts all the corresponding roleTypeRoles with role key
+as the parent key.
+Also returns an error.
+*/
+func Add(ctx context.Context, k *datastore.Key, r *Role) error {
+	var krtrx []*datastore.Key
+	var rtrx roleTypeRole.RoleTypeRoles
+	for _, v := range r.RoleTypes {
+		krtr := datastore.NewIncompleteKey(ctx, "RoleTypeRole", k)
+		krtrx = append(krtrx, krtr)
+		krt := datastore.NewKey(ctx, "RoleType", v, 0, nil)
+		rtr := &roleTypeRole.RoleTypeRole{
+			RoleTypeKey: krt,
+		}
+		rtrx = append(rtrx, rtr)
+	}
+	return datastore.RunInTransaction(ctx, func(ctx context.Context) (
+		err1 error) {
+		k, err1 = datastore.Put(ctx, k, r)
 		if err1 != nil {
 			return
 		}
-		rs, err1 = GetMulti(s.Ctx, nil)
+		_, err1 = datastore.PutMulti(ctx, krtrx, rtrx)
 		return
 	}, nil)
-	rs[rNew.ID] = rNew
-	return rs, err
 }
 
-// Delete removes the entity and all the corresponding "roleTypeRole" and "roleUser"
-// entities in a transaction by the provided encoded entity key
-// and returns an error.
+/*
+Delete removes the entity and all the corresponding "roleTypeRole" and "roleUser"
+entities in a transaction by the provided encoded entity key
+and returns an error.
+*/
 func Delete(ctx context.Context, ek string) error {
 	k, err := datastore.DecodeKey(ek)
 	if err != nil {
@@ -98,13 +120,13 @@ func Delete(ctx context.Context, ek string) error {
 		return err
 	}
 	kurx, err := roleUser.GetKeysByUserOrRoleKey(ctx, k)
-	if err != nil {
+	if err != datastore.Done {
 		return err
 	}
 	opts := new(datastore.TransactionOptions)
 	opts.XG = true
-	err = datastore.RunInTransaction(ctx, func(ctx context.Context) (err1 error) {
-		err1 = roleTypeRole.DeleteMulti(ctx, krtrx)
+	return datastore.RunInTransaction(ctx, func(ctx context.Context) (err1 error) {
+		err1 = datastore.DeleteMulti(ctx, krtrx)
 		if err1 != nil {
 			return
 		}
@@ -115,5 +137,4 @@ func Delete(ctx context.Context, ek string) error {
 		err1 = datastore.Delete(ctx, k)
 		return
 	}, opts)
-	return err
 }

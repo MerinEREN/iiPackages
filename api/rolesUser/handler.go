@@ -25,13 +25,13 @@ import (
 func Handler(s *session.Session) {
 	URL := s.R.URL
 	q := URL.Query()
-	pID := q.Get("pID")
-	if pID == "" {
+	uID := q.Get("uID")
+	if uID == "" {
 		log.Printf("Path: %s, Error: No parent ID\n", URL.Path)
 		http.Error(s.W, "No parent ID", http.StatusBadRequest)
 		return
 	}
-	pk, err := datastore.DecodeKey(pID)
+	ku, err := datastore.DecodeKey(uID)
 	if err != nil {
 		log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 		http.Error(s.W, err.Error(), http.StatusInternalServerError)
@@ -56,7 +56,7 @@ func Handler(s *session.Session) {
 		var kx []*datastore.Key
 		var rux roleUser.RolesUser
 		for _, v := range rIDx {
-			k := datastore.NewKey(s.Ctx, "RoleUser", v, 0, pk)
+			k := datastore.NewKey(s.Ctx, "RoleUser", v, 0, ku)
 			kx = append(kx, k)
 			kr, err := datastore.DecodeKey(v)
 			if err != nil {
@@ -84,7 +84,7 @@ func Handler(s *session.Session) {
 			http.Error(s.W, "No role ID to delete", http.StatusBadRequest)
 			return
 		}
-		k := datastore.NewKey(s.Ctx, "RoleUser", rID, 0, pk)
+		k := datastore.NewKey(s.Ctx, "RoleUser", rID, 0, ku)
 		err = datastore.Delete(s.Ctx, k)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
@@ -95,7 +95,7 @@ func Handler(s *session.Session) {
 	default:
 		// Handles "GET" requests
 		rs := make(role.Roles)
-		krx, err := roleUser.GetKeysByUserOrRoleKey(s.Ctx, pk)
+		krx, err := roleUser.GetKeysByUserOrRoleKey(s.Ctx, ku)
 		if err == datastore.Done {
 			if krx != nil {
 				rs, err = role.GetMulti(s.Ctx, krx)

@@ -8,14 +8,17 @@ up the detailed documentation that follows."
 package offers
 
 import (
+	"encoding/json"
 	"github.com/MerinEREN/iiPackages/api"
 	"github.com/MerinEREN/iiPackages/datastore/offer"
 	"github.com/MerinEREN/iiPackages/datastore/user"
 	"github.com/MerinEREN/iiPackages/session"
 	"google.golang.org/appengine/datastore"
+	"io/ioutil"
 	"log"
 	"net/http"
-	"strconv"
+	"strings"
+	"time"
 )
 
 // Handler returns account's offers via user ID if the user is admin
@@ -23,139 +26,157 @@ import (
 // Or returns demand's offers via demand ID.
 // If the request method is POST, puts the offer to the datastore.
 func Handler(s *session.Session) {
+	URL := s.R.URL
+	q := URL.Query()
+	dID := q.Get("dID")
 	switch s.R.Method {
 	case "POST":
-		dID := s.R.FormValue("dID")
 		if dID == "" {
-			log.Printf("Path: %s, Error: no demand ID\n", s.R.URL.Path)
+			log.Printf("Path: %s, Error: no demand ID\n", URL.Path)
 			http.Error(s.W, "No demand ID", http.StatusBadRequest)
 			return
 		}
-		uID := s.R.FormValue("uID")
-		if uID == "" {
-			log.Printf("Path: %s, Error: no user ID\n", s.R.URL.Path)
-			http.Error(s.W, "No user ID", http.StatusBadRequest)
+		ct := s.R.Header.Get("Content-Type")
+		if ct != "application/json" {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
+				"Content type is not application/json")
+			http.Error(s.W, "Content type is not application/json",
+				http.StatusUnsupportedMediaType)
 			return
 		}
-		explanation := s.R.FormValue("explanation")
-		if explanation == "" {
-			log.Printf("Path: %s, Error: no explanation value\n", s.R.URL.Path)
-			http.Error(s.W, "No explanation value", http.StatusBadRequest)
-			return
-		}
-		amountString := s.R.FormValue("amount")
-		if amountString == "" {
-			log.Printf("Path: %s, Error: no amount value\n", s.R.URL.Path)
-			http.Error(s.W, "No amount value", http.StatusBadRequest)
-			return
-		}
-		amount, err := strconv.ParseFloat(amountString, 64)
+		bs, err := ioutil.ReadAll(s.R.Body)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		o := &offer.Offer{
-			UserID:      uID,
-			Explanation: explanation,
-			Amount:      amount,
-			Status:      "active",
+		o := new(offer.Offer)
+		err = json.Unmarshal(bs, o)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		o.Status = "pending"
+		o.Created = time.Now()
 		pk, err := datastore.DecodeKey(dID)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		k := datastore.NewIncompleteKey(s.Ctx, "Offer", pk)
-		_, err = offer.Put(s, o, k)
+		k, err = datastore.Put(s.Ctx, k, o)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		s.W.WriteHeader(http.StatusNoContent)
+		o.ID = k.Encode()
+		sx := []string{"/offers", o.ID}
+		path := strings.Join(sx, "/")
+		rel, err := URL.Parse(path)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		s.W.Header().Set("Location", rel.String())
+		s.W.Header().Set("Content-Type", "application/json")
+		s.W.WriteHeader(http.StatusCreated)
+		api.WriteResponseJSON(s, o)
 	default:
-		err := s.R.ParseForm()
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-			http.Error(s.W, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		accID := s.R.Form.Get("aID")
-		dID := s.R.Form.Get("dID")
-		var crsrAsStringx []string
+		accID := q.Get("aID")
 		os := make(offer.Offers)
-		URL := s.R.URL
-		q := URL.Query()
-		rb := new(api.ResponseBody)
 		if accID != "" {
-			// DUMMY BLOCK !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			aKey, err := datastore.DecodeKey(accID)
+			// UPDATE THIS BLOCK !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			ka, err := datastore.DecodeKey(accID)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 				http.Error(s.W, err.Error(),
 					http.StatusInternalServerError)
 				return
 			}
-			uKeyx, err := user.GetKeysByParentOrdered(s.Ctx, aKey)
+			kux, err := user.GetKeysByParentOrdered(s.Ctx, ka)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 				http.Error(s.W, err.Error(),
 					http.StatusInternalServerError)
 				return
 			}
-			if len(s.R.Form["cs"]) == 0 {
-				crsrAsStringx = make([]string, len(uKeyx))
+			after := q["after"]
+			if len(after) == 0 {
+				after = make([]string, len(kux))
+			}
+			var lim int
+			limit := q.Get("limit")
+			if limit == "" {
+				lim = 0
 			} else {
-				crsrAsStringx = s.R.Form["cs"]
+				lim, err = strconv.Atoi(limit)
+				if err != nil {
+					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+				}
 			}
-			for i, v := range crsrAsStringx {
-				os2, crsrAsString, err := offer.GetByUserID(s.Ctx, v, uKeyx[i].Encode())
-				if err != nil && err != datastore.Done {
-					log.Printf("Path: %s, Request: get account offers via users keys, Error: %v\n", s.R.URL.Path, err)
+			for i, v := range kux {
+				ds2, crsrAsString, err := demand.GetNextByParentLimited(
+					s.Ctx, after[i], v, lim)
+				if err != nil {
+					log.Printf("Path: %s, Request: get account demands via users keys, Error: %v\n", URL.Path, err)
 					http.Error(s.W, err.Error(),
 						http.StatusInternalServerError)
 					return
 				}
-				for i2, v2 := range os2 {
-					os[i2] = v2
+				for i2, v2 := range ds2 {
+					ds[i2] = v2
 				}
-				if i == 1 {
-					q.Set("cs", crsrAsString)
-				} else {
-					q.Add("cs", crsrAsString)
-				}
+				crsrAsStringx = append(crsrAsStringx, crsrAsString)
 			}
-			URL.RawQuery = q.Encode()
-			rb.PrevPageURL = URL.String()
+			next := api.GenerateSubLink(s, crsrAsStringx, "next")
+			s.W.Header().Set("Link", next)
 		} else if dID != "" {
-			dKey, err := datastore.DecodeKey(dID)
+			kd, err := datastore.DecodeKey(dID)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 				http.Error(s.W, err.Error(),
 					http.StatusInternalServerError)
 				return
 			}
-			crsrAsString := s.R.Form.Get("c")
-			os, crsrAsString, err = offer.GetByParent(s.Ctx, crsrAsString, dKey)
-			if err != nil && err != datastore.Done {
-				log.Printf("Path: %s, Request: get demand offers via demand key, Error: %v\n", s.R.URL.Path, err)
-				http.Error(s.W, err.Error(),
-					http.StatusInternalServerError)
+			crsrAsString := q.Get("after")
+			var lim int
+			limit := q.Get("limit")
+			if limit == "" {
+				lim = 0
+			} else {
+				lim, err = strconv.Atoi(limit)
+				if err != nil {
+					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+				}
+			}
+			os, crsrAsString, err = offer.GetNextByParentLimited(s.Ctx, crsrAsString, kd, lim)
+			if err != nil {
+				log.Printf("Path: %s, Request: get demand offers via demand key, Error: %v\n", URL.Path, err)
+				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			q.Set("c", crsrAsString)
-			URL.RawQuery = q.Encode()
-			rb.PrevPageURL = URL.String()
+			switch len(os) {
+			case 0:
+				s.W.WriteHeader(http.StatusNoContent)
+			case 1:
+				next := api.GenerateSubLink(s, crsrAsString, "next")
+				s.W.Header().Set("Link", next)
+				s.W.Header().Set("Content-Type", "application/json")
+				for _, v := range os {
+					api.WriteResponseJSON(s, v)
+				}
+			default:
+				next := api.GenerateSubLink(s, crsrAsString, "next")
+				s.W.Header().Set("Link", next)
+				s.W.Header().Set("Content-Type", "application/json")
+				api.WriteResponseJSON(s, os)
+			}
 		} else {
 			// For timeline
 		}
-		if len(os) == 0 {
-			s.W.WriteHeader(http.StatusNoContent)
-			return
-		}
-		rb.Result = os
-		api.WriteResponseJSON(s, rb)
 	}
 }

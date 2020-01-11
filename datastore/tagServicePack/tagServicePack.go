@@ -59,6 +59,42 @@ func GetDistinctLatestLimited(ctx context.Context, lim int) ([]TagServicePack, e
 	return tdx, err
 }
 
+// GetKeysParentsFilteredByTagKeyLimited returns limited number of the key's parent key
+// from the begining of the kind with given filter and order
+// starting and ending cursors as string
+// and also an error.
+// ADD LOCATION FILTER HERE AND USE ACCOUNTS ADDRES INFO.
+func GetKeysParentsFilteredByTagKeyLimited(ctx context.Context, kt *datastore.Key, lim int) (
+	[]*datastore.Key, string, string, error) {
+	var kspx []*datastore.Key
+	q := datastore.NewQuery("TagServicePack")
+	q = q.
+		Filter("TagKey =", kt).
+		Order("-Created").
+		KeysOnly()
+	if lim > 0 && lim < 40 {
+		q = q.Limit(lim)
+	} else {
+		q = q.Limit(20)
+	}
+	it := q.Run(ctx)
+	before, err := it.Cursor()
+	if err != nil {
+		return nil, "", "", err
+	}
+	for {
+		k, err := it.Next(nil)
+		if err == datastore.Done {
+			after, err := it.Cursor()
+			return kspx, before.String(), after.String(), err
+		}
+		if err != nil {
+			return nil, "", "", err
+		}
+		kspx = append(kspx, k.Parent())
+	}
+}
+
 /*
 GetPrevKeysParentsFilteredByTagKey returns the key's parent key
 from the begining to the previous start point with given filter and order.

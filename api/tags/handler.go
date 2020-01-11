@@ -10,6 +10,7 @@ import (
 	"github.com/MerinEREN/iiPackages/datastore/tagDemand"
 	"github.com/MerinEREN/iiPackages/session"
 	"google.golang.org/appengine/datastore"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
@@ -60,13 +61,29 @@ func Handler(s *session.Session) {
 		http.Error(s.W, "You are unauthorized user.", http.StatusUnauthorized)
 		return
 	} */
+	URL := s.R.URL
+	qry := URL.Query()
 	ts := make(tag.Tags)
-	var err error
 	switch s.R.Method {
 	case "POST":
-		contextID := s.R.FormValue("contextID")
-		t := &tag.Tag{
-			ContextID: contextID,
+		ct := s.R.Header().Get("Content-Type")
+		if ct != "application/json" {
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusUnsupportedMediaType)
+			return
+		}
+		bs, err := ioutil.ReadAll(s.R.Body)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		t := new(tag.Tag)
+		err = json.Unmarshal(bs, t)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
 		}
 		// Reset the cursor and get the entities from the begining.
 		var crsr datastore.Cursor
@@ -84,15 +101,12 @@ func Handler(s *session.Session) {
 		api.WriteResponse(s, rb)
 	default:
 		// Handles "GET" requests
-		URL := s.R.URL
-		qry := URL.Query()
 		q := qry.Get("q")
 		if q != "" {
 			var kx []*datastore.Key
-			count := 0
 			switch q {
 			case "top":
-				// Get most used by demands
+				// Get latest most used tags by demands.
 				tdx, err := tagDemand.GetDistinctLatestLimited(s.Ctx, 100)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
@@ -118,16 +132,17 @@ func Handler(s *session.Session) {
 				}
 				var kcx []*datastore.Key
 				for _, v := range k2x {
-					k, err := datastore.DecodeKey(v.StringID())
+					kc, err := datastore.DecodeKey(v.StringID())
 					if err != nil {
-						log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+						log.Printf("Path: %s, Error: %v\n",
+							URL.Path, err)
 						http.Error(s.W, err.Error(),
 							http.StatusInternalServerError)
 						return
 					}
-					kcx = append(kcx, k)
+					kcx = append(kcx, kc)
 				}
-				cx := make([]context.Context, len(kcx))
+				cx := make([]context.Context, 0, len(kcx))
 				err = datastore.GetMulti(s.Ctx, kcx, cx)
 				if err != nil {
 					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
@@ -142,6 +157,7 @@ func Handler(s *session.Session) {
 						http.StatusInternalServerError)
 					return
 				}
+				count := 0
 				for i, v := range cx {
 					if count == 6 {
 						break
@@ -174,6 +190,7 @@ func Handler(s *session.Session) {
 			}
 		} else {
 			// Get all
+			var err error
 			ts, err = tag.GetMulti(s.Ctx, nil)
 			if err != datastore.Done {
 				log.Printf("Path: %s, Error: %v\n", URL.Path, err)

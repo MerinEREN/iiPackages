@@ -17,7 +17,6 @@ import (
 	"github.com/MerinEREN/iiPackages/datastore/user"
 	"github.com/MerinEREN/iiPackages/session"
 	"github.com/MerinEREN/iiPackages/storage"
-	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
 	"google.golang.org/appengine/memcache"
 	"log"
@@ -27,11 +26,14 @@ import (
 	"time"
 )
 
-// Handler returns account's demands via account ID if provided.
-// Otherwise if the user is "admin" returns demands via account's all user's tag keys
-// else returns only via user tag keys to show in timeline.
-// If the request method is POST, uploads the files if present to the storage and
-// puts the demand and it's tags to the datastore.
+/*
+Handler returns account's demands via account ID if provided.
+Otherwise if the user is "admin" returns demands via account's all user's tag keys
+else returns only via user tag keys to show in timeline.
+If the request method is POST, uploads the files if present to the storage and
+puts the demand and it's tags to the datastore.
+Also returns created demand.
+*/
 func Handler(s *session.Session) {
 	URL := s.R.URL
 	q := URL.Query()
@@ -50,16 +52,16 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		tIDs := s.R.MultipartForm.Value["tagIDs"]
 		description := s.R.MultipartForm.Value["description"][0]
 		d := &demand.Demand{
 			Description:  description,
-			Status:       "active",
+			Status:       "pending",
 			Created:      time.Now(),
 			LastModified: time.Now(),
 		}
+		tIDs := s.R.MultipartForm.Value["tagIDs"]
 		fhx := s.R.MultipartForm.File["files"]
-		px := make([]*photo.Photo, len(fhx))
+		px := make([]*photo.Photo, 0, cap(fhx))
 		for _, v := range fhx {
 			f, err := v.Open()
 			if err != nil {
@@ -82,54 +84,36 @@ func Handler(s *session.Session) {
 			}
 			px = append(px, p)
 		}
-		pk, err := datastore.DecodeKey(uID)
+		ku, err := datastore.DecodeKey(uID)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		k := datastore.NewIncompleteKey(s.Ctx, "Demand", pk)
-		tdx := make([]*tagDemand.TagDemand, len(tIDs))
-		ktdx := make([]*datastore.Key, len(tIDs))
-		kpx := make([]*datastore.Key, len(px))
-		err = datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (
-			err1 error) {
-			k, err1 = datastore.Put(ctx, k, d)
-			if err1 != nil {
-				return
-			}
-			for _, v := range tIDs {
-				ktd := datastore.NewKey(s.Ctx, "TagDemand", v, 0, k)
-				ktdx = append(ktdx, ktd)
-				kt := new(datastore.Key)
-				kt, err1 = datastore.DecodeKey(v)
-				if err1 != nil {
-					return
-				}
-				td := &tagDemand.TagDemand{
-					Created: time.Now(),
-					TagKey:  kt,
-				}
-				tdx = append(tdx, td)
-			}
-			_, err1 = datastore.PutMulti(ctx, ktdx, tdx)
-			if err1 != nil {
-				return
-			}
-			for i := 0; i < len(px); i++ {
-				kp := datastore.NewIncompleteKey(s.Ctx, "Photo", k)
-				kpx = append(kpx, kp)
-			}
-			_, err1 = datastore.PutMulti(ctx, kpx, px)
-			return
-		}, nil)
+		k := datastore.NewIncompleteKey(s.Ctx, "Demand", ku)
+		k, err = demand.Add(s.Ctx, k, d, tIDs, px)
 		if err != nil {
 			// REMOVE ALL THE UPLOADED FILES FROM THE STORAGE !!!!!!!!!!!!!!!!!
 			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		s.W.WriteHeader(http.StatusNoContent)
+		d.ID = k.Encode()
+		d.UserID = uID
+		ka := ku.Parent()
+		d.AccountID = ka.Encode()
+		sx := []string{"/demands", d.ID}
+		path := strings.Join(sx, "/")
+		rel, err := URL.Parse(path)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		s.W.Header().Set("Location", rel.String())
+		s.W.Header().Set("Content-Type", "application/json")
+		s.W.WriteHeader(http.StatusCreated)
+		api.WriteResponseJSON(s, d)
 	default:
 		accID := q.Get("aID")
 		var crsrAsStringx []string
@@ -450,11 +434,17 @@ func Handler(s *session.Session) {
 				s.W.Header().Set("X-Reset", "true")
 			}
 		}
-		if len(ds) == 0 {
+		switch len(ds) {
+		case 0:
 			s.W.WriteHeader(http.StatusNoContent)
-			return
+		case 1:
+			s.W.Header().Set("Content-Type", "application/json")
+			for _, v := range ds {
+				api.WriteResponseJSON(s, v)
+			}
+		default:
+			s.W.Header().Set("Content-Type", "application/json")
+			api.WriteResponseJSON(s, ds)
 		}
-		s.W.Header().Set("Content-Type", "application/json")
-		api.WriteResponseJSON(s, ds)
 	}
 }

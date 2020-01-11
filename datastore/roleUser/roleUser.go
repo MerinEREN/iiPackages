@@ -13,8 +13,10 @@ import (
 	"google.golang.org/appengine/datastore"
 )
 
-// GetKeysByUserOrRoleKey returns the user keys as a slice if the role key is provided
-// or returns the role keys as a slice if user key is provided and also an error.
+/*
+GetKeysByUserOrRoleKey returns the user keys as a slice if the role key is provided
+or returns the role keys as a slice if user key is provided and also an error.
+*/
 func GetKeysByUserOrRoleKey(ctx context.Context, key *datastore.Key) (
 	[]*datastore.Key, error) {
 	var kx []*datastore.Key
@@ -59,7 +61,6 @@ func GetKeysByUserOrRoleKey(ctx context.Context, key *datastore.Key) (
 
 // GetKeys returns the roleUser keys by user or role key and an error.
 func GetKeys(ctx context.Context, key *datastore.Key) ([]*datastore.Key, error) {
-	var kx []*datastore.Key
 	q := datastore.NewQuery("RoleUser")
 	kind := key.Kind()
 	switch kind {
@@ -70,16 +71,7 @@ func GetKeys(ctx context.Context, key *datastore.Key) ([]*datastore.Key, error) 
 		q = q.Ancestor(key)
 	}
 	q = q.KeysOnly()
-	for it := q.Run(ctx); ; {
-		k, err := it.Next(nil)
-		if err == datastore.Done {
-			return kx, err
-		}
-		if err != nil {
-			return nil, err
-		}
-		kx = append(kx, k)
-	}
+	return q.GetAll(ctx, nil)
 }
 
 // GetCount returns the count of the entities that has the provided key and an error.

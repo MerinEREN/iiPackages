@@ -2,11 +2,12 @@
 package page
 
 import (
+	"encoding/json"
 	"github.com/MerinEREN/iiPackages/api"
 	"github.com/MerinEREN/iiPackages/datastore/page"
 	"github.com/MerinEREN/iiPackages/session"
-	"github.com/MerinEREN/iiPackages/storage"
 	"google.golang.org/appengine/datastore"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
@@ -23,36 +24,35 @@ func Handler(s *session.Session) {
 	}
 	switch s.R.Method {
 	case "PUT":
-		// GET THE ENTITY AS BLOB OBJECT TO PREVENT RunInTransaction IN PUT FUNC !!
-		text := s.R.FormValue("text")
-		p := &page.Page{
-			ID:   ID,
-			Text: text,
+		ct := s.R.Header.Get("Content-Type")
+		if ct != "application/json" {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
+				"Content type is not application/json")
+			http.Error(s.W, "Content type is not application/json",
+				http.StatusUnsupportedMediaType)
+			return
 		}
-		mpf, hdr, err := s.R.FormFile("file")
-		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-		} else {
-			defer mpf.Close()
-			// CHECK THE STORAGE AND IF THE FILE PRESENT DO NOT UPLOAD THE FILE
-			p.Link, err = storage.UploadFile(s, mpf, hdr)
-			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-				http.Error(s.W, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-		p, err = page.Put(s, p)
+		bs, err := ioutil.ReadAll(s.R.Body)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		rb := new(api.ResponseBody)
-		ps := make(page.Pages)
-		ps[p.ID] = p
-		rb.Result = ps
-		api.WriteResponseJSON(s, rb)
+		p := new(page.Page)
+		err = json.Unmarshal(bs, p)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		p, err = page.Update(s.Ctx, p, ID)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		s.W.Header().Set("Content-Type", "application/json")
+		api.WriteResponseJSON(s, p)
 	case "DELETE":
 		err := page.Delete(s.Ctx, ID)
 		if err != nil {
@@ -60,18 +60,29 @@ func Handler(s *session.Session) {
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		// REDIRECT TO THE PAGES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		s.W.WriteHeader(http.StatusNoContent)
 	default:
-		// Handles "GET" requests
-		ps, err := page.Get(s, ID)
-		if err != nil && err != datastore.Done {
+		k, err := datastore.DecodeKey(ID)
+		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		rb := new(api.ResponseBody)
-		rb.Result = ps
-		api.WriteResponseJSON(s, rb)
+		p := new(page.Page)
+		err = datastore.Get(s.Ctx, k, p)
+		if err == datastore.ErrNoSuchEntity {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!
+			http.Error(s.W, err.Error(), http.StatusNotFound)
+			return
+		} else if err != nil {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			// ALSO LOG THIS WITH DATASTORE LOG !!!!!!!!!!!!!!!
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		p.ID = ID
+		s.W.Header().Set("Content-Type", "application/json")
+		api.WriteResponseJSON(s, p)
 	}
 }

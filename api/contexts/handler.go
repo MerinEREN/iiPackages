@@ -19,12 +19,14 @@ import (
 	// "io/ioutil"
 	"log"
 	"net/http"
-	"strings"
+	"strconv"
 )
 
 // Handler handles contexts of pages and contexts page.
 // ADD AUTHORISATION CONTROL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 func Handler(s *session.Session) {
+	URL := s.R.URL
+	q := URL.Query()
 	var err error
 	switch s.R.Method {
 	case "POST":
@@ -39,7 +41,7 @@ func Handler(s *session.Session) {
 			if err = dec.Decode(c); err == io.EOF {
 				break
 			} else if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -47,18 +49,16 @@ func Handler(s *session.Session) {
 			// that is the reason of the marshalling below.
 			c.ValuesBS, err = json.Marshal(c.Values)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			cx = append(cx, c)
 		}
-		cs := make(context.Contexts)
-		// Reset the cursor and get the entities from the begining.
-		var crsr datastore.Cursor
-		cs, crsr, err = context.PutMultiAndGetNextLimited(s, crsr, cx)
-		if err != nil && err != datastore.Done {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+		// Get the entities from the begining with "" cursor string value.
+		cs, crsrAsString, err := context.AddMultiAndGetNextLimited(s.Ctx, "", cx)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -69,21 +69,25 @@ func Handler(s *session.Session) {
 				contextValues := make(map[string]string)
 				err = json.Unmarshal(v.ValuesBS, &contextValues)
 				if err != nil {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-					http.Error(s.W, err.Error(), http.StatusInternalServerError)
+					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+					http.Error(s.W, err.Error(),
+						http.StatusInternalServerError)
 					return
 				}
 				v.Values = contextValues
 				k, err = datastore.DecodeKey(v.ID)
 				if err != nil {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-					http.Error(s.W, err.Error(), http.StatusInternalServerError)
+					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+					http.Error(s.W, err.Error(),
+						http.StatusInternalServerError)
 					return
 				}
-				_, kpx, err := pageContext.GetKeysByPageOrContextKey(s.Ctx, k)
+				_, kpx, err := pageContext.GetKeysByPageOrContextKey(
+					s.Ctx, k)
 				if err != datastore.Done {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
-					http.Error(s.W, err.Error(), http.StatusInternalServerError)
+					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
+					http.Error(s.W, err.Error(),
+						http.StatusInternalServerError)
 					return
 				}
 				var ekpx []string
@@ -93,7 +97,7 @@ func Handler(s *session.Session) {
 				v.PageIDs = ekpx
 			}
 		}
-		next := api.GenerateSubLink(s, crsr, "next")
+		next := api.GenerateSubLink(s, crsrAsString, "next")
 		s.W.Header().Set("Link", next)
 		s.W.Header().Set("X-Reset", "true")
 		s.W.Header().Set("Content-Type", "application/json")
@@ -107,7 +111,7 @@ func Handler(s *session.Session) {
 			if err = dec.Decode(c); err == io.EOF {
 				break
 			} else if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -115,37 +119,34 @@ func Handler(s *session.Session) {
 			// that is the reason of the marshalling below.
 			c.ValuesBS, err = json.Marshal(c.Values)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 				http.Error(s.W, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			cx = append(cx, c)
 		}
-		_, err = context.PutMulti(s, cx)
+		_, err = context.UpdateMulti(s.Ctx, cx)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		s.W.WriteHeader(http.StatusNoContent)
 	case "DELETE":
-		IDsAsString := s.R.FormValue("IDs")
-		ekx := strings.Split(IDsAsString, ",")
+		ekx := q["IDs"]
 		if len(ekx) == 0 {
-			log.Printf("Path: %s, Error: no key\n", s.R.URL.Path)
+			log.Printf("Path: %s, Error: no key\n", URL.Path)
 			http.Error(s.W, "no key", http.StatusBadRequest)
 			return
 		}
 		err = context.DeleteMulti(s.Ctx, ekx)
 		if err != nil {
-			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		s.W.WriteHeader(http.StatusNoContent)
 	default:
-		URL := s.R.URL
-		q := URL.Query()
 		cs := make(context.Contexts)
 		if pID := q.Get("pID"); pID != "" {
 			kp := datastore.NewKey(s.Ctx, "Page", pID, 0, nil)
@@ -157,7 +158,7 @@ func Handler(s *session.Session) {
 				return
 			}
 			if kx != nil {
-				cx := make([]*context.Context, len(kx))
+				var cx []*context.Context
 				// RETURNED ENTITY LIMIT COULD BE A PROBLEM HERE !!!!!!!!!!
 				err = datastore.GetMulti(s.Ctx, kx, cx)
 				if err != nil {
@@ -189,13 +190,25 @@ func Handler(s *session.Session) {
 				api.WriteResponseJSON(s, rb)
 			} else {
 				s.W.WriteHeader(http.StatusNoContent)
-				return
 			}
 		} else {
-			after := q.Get("after")
-			cs, after, err = context.GetNextLimited(s.Ctx, after, 2222)
+			limit := q.Get("limit")
+			var lim int
+			if limit == "" {
+				// lim = 0
+				lim = 2222
+			} else {
+				lim, err = strconv.Atoi(limit)
+				if err != nil {
+					log.Printf("Path: %s, Error: %v\n",
+						URL.Path, err)
+				}
+			}
+			crsrAsString := q.Get("after")
+			cs, crsrAsString, err = context.GetNextLimited(s.Ctx,
+				crsrAsString, lim)
 			if err != nil {
-				log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+				log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 				http.Error(s.W, err.Error(),
 					http.StatusInternalServerError)
 				return
@@ -209,8 +222,7 @@ func Handler(s *session.Session) {
 				contextValues := make(map[string]string)
 				err = json.Unmarshal(v.ValuesBS, &contextValues)
 				if err != nil {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
-						err)
+					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 					http.Error(s.W, err.Error(),
 						http.StatusInternalServerError)
 					return
@@ -218,8 +230,7 @@ func Handler(s *session.Session) {
 				v.Values = contextValues
 				k, err = datastore.DecodeKey(v.ID)
 				if err != nil {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
-						err)
+					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 					http.Error(s.W, err.Error(),
 						http.StatusInternalServerError)
 					return
@@ -227,8 +238,7 @@ func Handler(s *session.Session) {
 				_, kpx, err := pageContext.GetKeysByPageOrContextKey(
 					s.Ctx, k)
 				if err != datastore.Done {
-					log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
-						err)
+					log.Printf("Path: %s, Error: %v\n", URL.Path, err)
 					http.Error(s.W, err.Error(),
 						http.StatusInternalServerError)
 					return
@@ -237,7 +247,7 @@ func Handler(s *session.Session) {
 					v.PageIDs = append(v.PageIDs, v2.Encode())
 				}
 			}
-			next := api.GenerateSubLink(s, crsr, "next")
+			next := api.GenerateSubLink(s, crsrAsString, "next")
 			s.W.Header().Set("Link", next)
 			s.W.Header().Set("Content-Type", "application/json")
 			api.WriteResponseJSON(s, cs)

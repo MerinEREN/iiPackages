@@ -8,8 +8,7 @@ import (
 // datastore: ",noindex" causes json naming problems !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 type Page struct {
 	ID           string    `datastore:"-"`
-	Text         string    `json:"text"`
-	Link         string    `json:"link"`
+	Name         string    `json:"name"`
 	Created      time.Time `json:"created"`
 	LastModified time.Time `json:"lastModified"`
 }

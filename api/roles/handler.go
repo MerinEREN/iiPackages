@@ -3,14 +3,15 @@ package roles
 
 import (
 	// "github.com/MerinEREN/iiPackages/api/user"
+	"encoding/json"
 	"github.com/MerinEREN/iiPackages/api"
 	"github.com/MerinEREN/iiPackages/datastore/role"
-	"github.com/MerinEREN/iiPackages/datastore/roleTypeRole"
 	"github.com/MerinEREN/iiPackages/session"
-	"golang.org/x/net/context"
 	"google.golang.org/appengine/datastore"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 )
 
 // Handler posts a role and returns all the roles from the begining of the kind
@@ -53,72 +54,58 @@ func Handler(s *session.Session) {
 	} */
 	switch s.R.Method {
 	case "POST":
-		// https://stackoverflow.com/questions/15202448/go-formfile-for-multiple-files
-		err := s.R.ParseMultipartForm(32 << 20) // 32MB is the default used by FormFile.
+		ct := s.R.Header.Get("Content-Type")
+		if ct != "application/json" {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path,
+				"Content type is not application/json")
+			http.Error(s.W, "Content type is not application/json",
+				http.StatusUnsupportedMediaType)
+			return
+		}
+		bs, err := ioutil.ReadAll(s.R.Body)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		contentID := s.R.MultipartForm.Value["contentID"][0]
-		r := &role.Role{
-			ContentID: contentID,
-		}
-		kr := datastore.NewKey(s.Ctx, "Role", r.ContentID, 0, nil)
-		rtr := &roleTypeRole.RoleTypeRole{
-			RoleKey: kr,
-		}
-		var krtrx []*datastore.Key
-		var rtrx roleTypeRole.RoleTypeRoles
-		roleTypes := s.R.MultipartForm.Value["types"]
-		for _, v := range roleTypes {
-			log.Printf("\nRole is: %v", v)
-			krt := datastore.NewKey(s.Ctx, "RoleType", v, 0, nil)
-			krtr := datastore.NewIncompleteKey(s.Ctx, "RoleTypeRole", krt)
-			krtrx = append(krtrx, krtr)
-			rtrx = append(rtrx, rtr)
-		}
-		opts := new(datastore.TransactionOptions)
-		opts.XG = true
-		rs := make(role.Roles)
-		// "cursor" IS OUT OF USE FOR NOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		// Reset the cursor and get the entities from the begining.
-		var crsr datastore.Cursor
-		// USAGE "s" INSTEAD OF "ctx" INSIDE THE TRANSACTION IS WRONG !!!!!!!!!!!!!
-		err = datastore.RunInTransaction(s.Ctx, func(ctx context.Context) (
-			err1 error) {
-			rs, err1 = role.PutAndGetMulti(s, r)
-			if err1 != nil && err1 != datastore.Done {
-				return
-			}
-			err1 = roleTypeRole.PutMulti(ctx, krtrx, rtrx)
-			return
-		}, opts)
+		r := new(role.Role)
+		err = json.Unmarshal(bs, r)
 		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		rb := new(api.ResponseBody)
-		rb.Result = rs
-		rb.PrevPageURL = "/roles?c=" + crsr.String()
+		r.Created = time.Now()
+		k := datastore.NewKey(s.Ctx, "Role", r.ContextID, 0, nil)
+		err = role.Add(s.Ctx, k, r)
+		if err != nil {
+			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
+			http.Error(s.W, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		r.ID = k.Encode()
 		s.W.Header().Set("Content-Type", "application/json")
 		s.W.WriteHeader(http.StatusCreated)
-		api.WriteResponse(s, rb)
+		api.WriteResponseJSON(s, r)
 	default:
 		// Handles "GET" requests
-		rs, err := role.GetMulti(s.Ctx, nil)
-		if err != datastore.Done {
+		rs, err := role.GetAll(s.Ctx)
+		if err != nil {
 			log.Printf("Path: %s, Error: %v\n", s.R.URL.Path, err)
 			http.Error(s.W, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if len(rs) == 0 {
+		switch len(rs) {
+		case 0:
 			s.W.WriteHeader(http.StatusNoContent)
-			return
+		case 1:
+			s.W.Header().Set("Content-Type", "application/json")
+			for _, v := range rs {
+				api.WriteResponseJSON(s, v)
+			}
+		default:
+			s.W.Header().Set("Content-Type", "application/json")
+			api.WriteResponseJSON(s, rs)
 		}
-		rb := new(api.ResponseBody)
-		rb.Result = rs
-		api.WriteResponseJSON(s, rb)
 	}
 }
